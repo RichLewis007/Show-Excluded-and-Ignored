@@ -61,6 +61,8 @@ class MainWindow(QMainWindow):
         self._controls_enabled = True
         self._last_scan_nodes: list[PathNode] = []
         self._last_export_format = self._settings_store.load_export_format()
+        self._scan_running = False
+        self._pause_requested = False
 
         self.setWindowTitle("Show Excluded and Ignored")
         self.resize(1200, 800)
@@ -102,6 +104,20 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
+        self.scan_action = QAction("Scan", self)
+        self.scan_action.triggered.connect(self._start_scan)
+        toolbar.addAction(self.scan_action)
+
+        self.pause_action = QAction("Pause", self)
+        self.pause_action.setEnabled(False)
+        self.pause_action.triggered.connect(self._pause_scan)
+        toolbar.addAction(self.pause_action)
+
+        self.cancel_action = QAction("Cancel", self)
+        self.cancel_action.setEnabled(False)
+        self.cancel_action.triggered.connect(self._cancel_scan)
+        toolbar.addAction(self.cancel_action)
+
         self.select_root_action = QAction("Source folder..", self)
         self.select_root_action.triggered.connect(self._prompt_select_root)
         toolbar.addAction(self.select_root_action)
@@ -125,12 +141,18 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.quit_action)
 
         file_menu = self.menuBar().addMenu("&File")
+        file_menu.addAction(self.scan_action)
+        file_menu.addAction(self.pause_action)
+        file_menu.addAction(self.cancel_action)
+        file_menu.addSeparator()
         file_menu.addAction(self.select_root_action)
         file_menu.addAction(self.open_action)
         file_menu.addSeparator()
         file_menu.addAction(self.export_action)
         file_menu.addSeparator()
         file_menu.addAction(self.quit_action)
+
+        self._set_scan_running(False)
 
     def _create_central_layout(self) -> QVBoxLayout:
         # Return the central layout containing the results tree and search.
@@ -195,11 +217,13 @@ class MainWindow(QMainWindow):
             self.status_bar.set_message("No rules loaded.")
             self.tree_panel.load_nodes([], [])
             self._set_controls_enabled(True)
+            self._set_scan_running(False)
             return
 
         self.status_bar.set_message("Starting scan…")
         self.status_bar.set_progress(None)
         self._set_controls_enabled(False)
+        self._set_scan_running(True)
 
         worker = ScanWorker(root_path=self._root_path, rules=self.rules_panel.rules)
         thread = QThread(self)
@@ -234,6 +258,7 @@ class MainWindow(QMainWindow):
                 self._scan_thread.wait(3000)
             self._scan_thread = None
             self._scan_worker = None
+            self._set_scan_running(False)
 
     def _on_scan_progress(self, scanned: int, matched: int, current_path: str) -> None:
         # Update progress feedback while scanning.
@@ -256,23 +281,31 @@ class MainWindow(QMainWindow):
         self._last_scan_nodes = self.tree_panel.collect_nodes(visible_only=False)
         self._settings_store.save_last_paths(self._root_path, self._filter_file)
         self._update_action_states()
+        self._set_scan_running(False)
 
     def _on_scan_error(self, message: str) -> None:
         # Surface scan failures to the user.
         self.status_bar.set_message("Scan failed.")
         self._set_controls_enabled(True)
         QMessageBox.critical(self, "Scan failed", message)
+        self._set_scan_running(False)
 
     def _on_scan_cancelled(self) -> None:
         # Reset UI after a cancelled scan.
-        self.status_bar.set_message("Scan cancelled.")
+        if self._pause_requested:
+            self.status_bar.set_message("Scan paused.")
+        else:
+            self.status_bar.set_message("Scan cancelled.")
         self.status_bar.set_progress(None)
         self._set_controls_enabled(True)
+        self._set_scan_running(False)
+        self._pause_requested = False
 
     def _on_scan_thread_finished(self) -> None:
         # Clear references once the scan thread exits.
         self._scan_thread = None
         self._scan_worker = None
+        self._set_scan_running(False)
 
     # ------------------------------------------------------------------
     # Filter file management
@@ -661,12 +694,40 @@ class MainWindow(QMainWindow):
         self.tree_panel.setEnabled(enabled)
         self._update_action_states()
 
+    def _set_scan_running(self, running: bool) -> None:
+        self._scan_running = running
+        if hasattr(self, "scan_action"):
+            self.scan_action.setEnabled(not running and bool(self.rules_panel.rules))
+        if hasattr(self, "pause_action"):
+            self.pause_action.setEnabled(running)
+        if hasattr(self, "cancel_action"):
+            self.cancel_action.setEnabled(running)
+
+    def _pause_scan(self) -> None:
+        if not self._scan_running:
+            return
+        self._pause_requested = True
+        self.status_bar.set_message("Scan paused.")
+        self._cancel_active_scan(wait=True)
+        self.status_bar.set_progress(None)
+        self._set_controls_enabled(True)
+
+    def _cancel_scan(self) -> None:
+        if not self._scan_running:
+            return
+        self._pause_requested = False
+        self.status_bar.set_message("Scan cancelled.")
+        self.status_bar.set_progress(None)
+        self._cancel_active_scan(wait=True)
+        self._set_controls_enabled(True)
+
     def _update_action_states(self) -> None:
         # Ensure toolbar actions reflect current selection and data.
         has_selection = bool(self.tree_panel.selected_nodes())
         self.delete_action.setEnabled(self._controls_enabled and has_selection)
         has_data = bool(self._last_scan_nodes)
         self.export_action.setEnabled(self._controls_enabled and has_data)
+        self._set_scan_running(self._scan_running)
 
     @staticmethod
     def _format_size(num_bytes: int) -> str:
