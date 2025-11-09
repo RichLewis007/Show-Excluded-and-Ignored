@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Results pane promoted to a dedicated “Results” panel that fills the window beneath the search bar.
 - File context menu now offers “Open in Finder/File Explorer” with OS-specific handling.
 - “Open…” action validates and loads rclone filter files, replacing rules and triggering a rescan.
+- “Select Root…” action lets users change the scan directory from the toolbar or File menu.
 
 ## [0.1.0] - 2025-11-08
 

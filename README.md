@@ -2,6 +2,13 @@
 
 Desktop app for exploring files that match rclone filter rules. Built with PySide6 and managed with `uv`.
 
+## Features
+
+- Load rclone filter lists and scan a chosen root directory for matches.
+- Results pane highlights matched files with rule metadata and context actions.
+- Context menu lets you open matches in Finder/File Explorer or delete files safely to Trash.
+- Toolbar and File menu provide quick access to select a new root, load filter files, and export results.
+
 ## Development
 
 1. Install uv: <https://github.com/astral-sh/uv>
@@ -32,4 +39,5 @@ uv run --extra dev pytest tests/integration/test_scanner_finds_excluded_patterns
 
 ## Status
 
-Early scaffolding stage. Refer to `docs/program-specifications.md` for the roadmap.
+Core scanning workflow, rule loading, and results interactions are in place.
+Refer to `docs/program-specifications.md` for the roadmap and planned milestones.

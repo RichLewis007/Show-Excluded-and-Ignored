@@ -103,7 +103,11 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
-        self.open_action = QAction("Open…", self)
+        self.select_root_action = QAction("Select Root…", self)
+        self.select_root_action.triggered.connect(self._prompt_select_root)
+        toolbar.addAction(self.select_root_action)
+
+        self.open_action = QAction("Open Filter…", self)
         self.open_action.triggered.connect(self._prompt_open_filter_file)
         toolbar.addAction(self.open_action)
 
@@ -118,6 +122,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.export_action)
 
         file_menu = self.menuBar().addMenu("&File")
+        file_menu.addAction(self.select_root_action)
         file_menu.addAction(self.open_action)
         file_menu.addSeparator()
         file_menu.addAction(self.export_action)
@@ -327,6 +332,31 @@ class MainWindow(QMainWindow):
         self._filter_file = path
         self.rules_panel.load_rules_from_path(path)
         self.status_bar.set_message(f"Loaded filter rules from {path}")
+        self._start_scan()
+
+    def _prompt_select_root(self) -> None:
+        """Allow the user to choose a new root directory to scan."""
+        start_dir = str(self._root_path) if self._root_path.exists() else str(Path.home())
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select root directory",
+            start_dir,
+        )
+        if not directory:
+            return
+
+        path = Path(directory)
+        if not path.exists():
+            QMessageBox.warning(
+                self,
+                "Invalid root",
+                "The selected directory does not exist.",
+            )
+            return
+
+        self._root_path = path
+        self.tree_panel.set_root_path(path)
+        self.status_bar.set_message(f"Root path set to {path}")
         self._start_scan()
 
     # ------------------------------------------------------------------
