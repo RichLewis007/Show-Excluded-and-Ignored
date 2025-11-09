@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Selecting rules in the sidebar now immediately filters results, with multi-select supported.
 - Folder rows render in bold, their full paths include a trailing slash, and the context menu explains that folders cannot be deleted.
 - When no rule checkboxes are active the full source tree is shown; unchecking “Select all” clears the result list.
+- Added File ▸ Exit command with confirmation dialog before closing the app.
 
 ## [0.1.0] - 2025-11-08
 

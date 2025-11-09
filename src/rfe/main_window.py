@@ -121,11 +121,16 @@ class MainWindow(QMainWindow):
         self.export_action.triggered.connect(self._prompt_export)
         toolbar.addAction(self.export_action)
 
+        self.exit_action = QAction("Exit", self)
+        self.exit_action.triggered.connect(self._prompt_exit)
+
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(self.select_root_action)
         file_menu.addAction(self.open_action)
         file_menu.addSeparator()
         file_menu.addAction(self.export_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.exit_action)
 
     def _create_central_layout(self) -> QVBoxLayout:
         """Return the central layout containing the results tree and search."""
@@ -358,6 +363,18 @@ class MainWindow(QMainWindow):
         self.tree_panel.set_root_path(path)
         self.status_bar.set_message(f"Root path set to {path}")
         self._start_scan()
+
+    def _prompt_exit(self) -> None:
+        """Confirm with the user before quitting the application."""
+        response = QMessageBox.question(
+            self,
+            "Exit Show Excluded and Ignored",
+            "Exit the application and discard the currently collected results?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if response == QMessageBox.StandardButton.Yes:
+            self.close()
 
     # ------------------------------------------------------------------
     # Delete workflow
