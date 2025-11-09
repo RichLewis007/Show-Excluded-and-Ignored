@@ -81,7 +81,7 @@ class RulesPanel(QWidget):
         for index, rule in enumerate(self._rules):
             item = QListWidgetItem(rule.display_label())
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Unchecked)
+            item.setCheckState(Qt.CheckState.Checked)
             item.setData(Qt.ItemDataRole.UserRole, index)
             tooltip = f"Line {rule.lineno}: {rule.action} {rule.pattern}"
             item.setToolTip(tooltip)
