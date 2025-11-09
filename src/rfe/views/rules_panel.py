@@ -24,7 +24,7 @@ from rfe.models.rules_model import Rule, parse_filter_file
 class RulesPanel(QWidget):
     """Widget listing filter rules with checkboxes."""
 
-    selectionChanged = Signal(list)
+    selectionChanged = Signal(object)
 
     _fallback_colors: ClassVar[list[str]] = [
         "#1abc9c",
@@ -109,7 +109,10 @@ class RulesPanel(QWidget):
                 if isinstance(index, int):
                     selected_indices.append(index)
         self._update_select_all_state()
-        self.selectionChanged.emit(selected_indices)
+        if selected_indices:
+            self.selectionChanged.emit(selected_indices)
+        else:
+            self.selectionChanged.emit(None)
 
     def _on_select_all_state_changed(self, state: int) -> None:
         """Handle changes to the tri-state “select all” checkbox."""
@@ -120,16 +123,20 @@ class RulesPanel(QWidget):
         if check_state == Qt.CheckState.PartiallyChecked:
             check_state = Qt.CheckState.Checked
 
-        self._set_all_items(check_state)
+        emit_clear = check_state == Qt.CheckState.Unchecked
+        self._set_all_items(check_state, emit_clear=emit_clear)
 
-    def _set_all_items(self, state: Qt.CheckState) -> None:
+    def _set_all_items(self, state: Qt.CheckState, *, emit_clear: bool = False) -> None:
         """Apply the same check state to every list item."""
         self._list.blockSignals(True)
         for i in range(self._list.count()):
             item = self._list.item(i)
             item.setCheckState(state)
         self._list.blockSignals(False)
-        self._emit_selection()
+        if emit_clear:
+            self.selectionChanged.emit([])
+        else:
+            self._emit_selection()
 
     def _update_select_all_state(self) -> None:
         """Synchronise the tri-state checkbox with individual item states."""

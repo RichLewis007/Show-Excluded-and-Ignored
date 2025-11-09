@@ -47,7 +47,7 @@ class PathTreeModel(QStandardItemModel):
         self._rules: Sequence[Rule] = []
 
     def load_nodes(self, nodes: Sequence[PathNode], rules: Sequence[Rule]) -> None:
-        """Populate the model with a fresh tree, hiding unmatched filesystem nodes."""
+        """Populate the model with a fresh tree."""
         self._rules = rules
         self.clear()
         self.setHorizontalHeaderLabels(self.HEADERS)
@@ -61,16 +61,9 @@ class PathTreeModel(QStandardItemModel):
         node: PathNode,
         prefix: str,
     ) -> None:
-        """Append a node to the model, skipping ones that lack matches."""
-        is_match = bool(node.rule_ids) or node.rule_index is not None
+        """Append a node to the model."""
         segment = node.name
         display_name = f"{prefix}/{segment}" if prefix else segment
-
-        if not is_match:
-            next_prefix = display_name if segment else prefix
-            for child in node.children:
-                self._append_node(parent_item=parent_item, node=child, prefix=next_prefix)
-            return
 
         row = self._create_row(node, display_name)
         if parent_item is None:

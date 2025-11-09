@@ -117,12 +117,10 @@ class ScanWorker(QObject):
                 if stats.scanned % emit_interval == 0:
                     self.progress.emit(stats.scanned, stats.matched, str(abs_path))
 
-                if not result.decision.matched:
-                    continue
-
                 node = self._build_node(result)
                 nodes[result.rel_path] = node
-                stats.matched += 1
+                if result.decision.matched:
+                    stats.matched += 1
 
         stats.end_time = monotonic()
         self.progress.emit(stats.scanned, stats.matched, "done")
@@ -131,7 +129,7 @@ class ScanWorker(QObject):
         return ScanPayload(nodes=tree_nodes, stats=stats)
 
     def _build_node(self, match: MatchResult) -> PathNode:
-        """Create a ``PathNode`` representation for a matched path."""
+        """Create a ``PathNode`` representation for a filesystem entry."""
         abs_path = match.abs_path
         try:
             stat = abs_path.stat()
