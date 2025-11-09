@@ -121,9 +121,9 @@ class MainWindow(QMainWindow):
         self.export_action.triggered.connect(self._prompt_export)
         toolbar.addAction(self.export_action)
 
-        self.exit_action = QAction("Exit", self)
-        self.exit_action.triggered.connect(self._prompt_exit)
-        self.exit_action.setMenuRole(QAction.MenuRole.QuitRole)
+        self.quit_action = QAction("Quit", self)
+        self.quit_action.triggered.connect(self._prompt_exit)
+        toolbar.addAction(self.quit_action)
 
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(self.select_root_action)
@@ -131,7 +131,7 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.export_action)
         file_menu.addSeparator()
-        file_menu.addAction(self.exit_action)
+        file_menu.addAction(self.quit_action)
 
     def _create_central_layout(self) -> QVBoxLayout:
         """Return the central layout containing the results tree and search."""
@@ -369,8 +369,8 @@ class MainWindow(QMainWindow):
         """Confirm with the user before quitting the application."""
         response = QMessageBox.question(
             self,
-            "Exit Show Excluded and Ignored",
-            "Exit the application and discard the currently collected results?",
+            "Quit Show Excluded and Ignored",
+            "Quit the application and discard the currently collected results?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )

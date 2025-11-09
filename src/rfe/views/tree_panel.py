@@ -20,7 +20,15 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtWidgets import QAbstractItemView, QMenu, QMessageBox, QTreeView, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QTreeView,
+    QVBoxLayout,
+    QWidget,
+)
 
 from rfe.models.fs_model import PathNode, PathTreeModel
 from rfe.models.rules_model import Rule
@@ -120,6 +128,10 @@ class TreePanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._tree)
+        self._summary_label = QLabel(self)
+        self._summary_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._summary_label.setText("Files: 0   Folders: 0   Total: 0")
+        layout.addWidget(self._summary_label)
         self.setLayout(layout)
 
     def load_nodes(self, nodes: Sequence[PathNode], rules: Sequence[Rule]) -> None:
@@ -132,6 +144,7 @@ class TreePanel(QWidget):
         for column in range(self._model.columnCount()):
             self._tree.resizeColumnToContents(column)
         self.selectionChanged.emit()
+        self._update_summary()
 
     def set_root_path(self, path: Path) -> None:
         """Record the root path in the widget's accessible metadata."""
@@ -141,6 +154,7 @@ class TreePanel(QWidget):
         """Update the filter proxy based on a search request."""
         regex = self._build_regex(text, mode, case_sensitive)
         self._proxy.set_search_regex(regex)
+        self._update_summary()
 
     def on_rules_selection_changed(self, rule_indices: list[int] | None) -> None:
         """React to rule selection changes from the rules panel."""
@@ -150,6 +164,7 @@ class TreePanel(QWidget):
             self._proxy.set_rule_filter([])
         else:
             self._proxy.set_rule_filter(rule_indices)
+        self._update_summary()
 
     def selected_paths(self) -> list[Path]:
         """Return absolute paths for the current selection."""
@@ -193,6 +208,7 @@ class TreePanel(QWidget):
         """Forward selection changes to listeners."""
         _ = selected, deselected
         self.selectionChanged.emit()
+        self._update_summary()
 
     def collect_nodes(self, *, visible_only: bool) -> list[PathNode]:
         """Collect nodes from the model, optionally limited to visible rows."""
@@ -204,9 +220,7 @@ class TreePanel(QWidget):
                 for row in range(proxy.rowCount(parent)):
                     index = proxy.index(row, 0, parent)
                     node = index.data(Qt.ItemDataRole.UserRole)
-                    if isinstance(node, PathNode) and (
-                        node.rule_index is not None or node.rule_ids
-                    ):
+                    if isinstance(node, PathNode):
                         collected.append(node)
                     walk(index)
 
@@ -217,13 +231,19 @@ class TreePanel(QWidget):
 
         def flatten(nodes: Sequence[PathNode]) -> None:
             for node in nodes:
-                if node.rule_index is not None or node.rule_ids:
-                    flattened.append(node)
+                flattened.append(node)
                 if node.children:
                     flatten(node.children)
 
         flatten(self._current_nodes)
         return flattened
+
+    def _update_summary(self) -> None:
+        nodes = self.collect_nodes(visible_only=True)
+        files = sum(1 for node in nodes if node.type == "file")
+        dirs = sum(1 for node in nodes if node.type == "dir")
+        total = len(nodes)
+        self._summary_label.setText(f"Files: {files}   Folders: {dirs}   Total: {total}")
 
     def _build_regex(
         self,
