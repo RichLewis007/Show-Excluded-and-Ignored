@@ -86,6 +86,10 @@ class PathTreeModel(QStandardItemModel):
         """Create a standard-item row for ``node``."""
         name_item = QStandardItem(display_name)
         name_item.setData(node, Qt.ItemDataRole.UserRole)
+        if node.type == "dir":
+            font = name_item.font()
+            font.setBold(True)
+            name_item.setFont(font)
 
         type_item = QStandardItem(node.type)
         size_item = QStandardItem(self._format_size(node.size))

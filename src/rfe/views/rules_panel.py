@@ -50,6 +50,7 @@ class RulesPanel(QWidget):
         self._list = QListWidget(self)
         self._list.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
         self._list.itemChanged.connect(self._emit_selection)
+        self._list.itemSelectionChanged.connect(self._on_item_selection_changed)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -110,6 +111,19 @@ class RulesPanel(QWidget):
                     selected_indices.append(index)
         self._update_select_all_state()
         self.selectionChanged.emit(selected_indices)
+
+    def _on_item_selection_changed(self) -> None:
+        """Emit only the explicitly selected rule indices when highlighted."""
+        selected_items = self._list.selectedItems()
+        if selected_items:
+            indices: list[int] = []
+            for item in selected_items:
+                index = item.data(Qt.ItemDataRole.UserRole)
+                if isinstance(index, int):
+                    indices.append(index)
+            self.selectionChanged.emit(indices)
+        else:
+            self._emit_selection()
 
     def _on_select_all_state_changed(self, state: int) -> None:
         """Handle changes to the tri-state “select all” checkbox."""

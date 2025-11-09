@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - File context menu now offers “Open in Finder/File Explorer” with OS-specific handling.
 - “Open…” action validates and loads rclone filter files, replacing rules and triggering a rescan.
 - “Select Root…” action lets users change the scan directory from the toolbar or File menu.
+- Selecting rules in the sidebar now immediately filters results, with multi-select supported.
+- Folder rows render in bold and the context menu explains that folders cannot be deleted.
 
 ## [0.1.0] - 2025-11-08
 

@@ -103,20 +103,20 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
-        self.select_root_action = QAction("Select Root…", self)
+        self.select_root_action = QAction("Source folder..", self)
         self.select_root_action.triggered.connect(self._prompt_select_root)
         toolbar.addAction(self.select_root_action)
 
-        self.open_action = QAction("Open Filter…", self)
+        self.open_action = QAction("Rules file..", self)
         self.open_action.triggered.connect(self._prompt_open_filter_file)
         toolbar.addAction(self.open_action)
 
-        self.delete_action = QAction("Delete…", self)
+        self.delete_action = QAction("Delete..", self)
         self.delete_action.setEnabled(False)
         self.delete_action.triggered.connect(self._prompt_delete_selection)
         toolbar.addAction(self.delete_action)
 
-        self.export_action = QAction("Export…", self)
+        self.export_action = QAction("Export results..", self)
         self.export_action.setEnabled(False)
         self.export_action.triggered.connect(self._prompt_export)
         toolbar.addAction(self.export_action)
