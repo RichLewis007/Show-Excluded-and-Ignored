@@ -36,6 +36,7 @@ class MatchResult:
     abs_path: Path
     rel_path: str
     decision: MatchDecision
+    all_rule_indexes: tuple[int, ...]
 
 
 class MatchEngine:
@@ -57,19 +58,18 @@ class MatchEngine:
 
     def match_path(self, rel_path: str) -> MatchDecision:
         """Return the first matching rule decision for ``rel_path``."""
-        normalized = rel_path.strip("/")
-        candidate = normalized or "."
-        posix_path = PurePosixPath(candidate)
-        lowered_path = PurePosixPath(candidate.lower()) if not self.case_sensitive else None
-
-        for prepared in self._prepared:
-            if self._pattern_matches(prepared, posix_path, lowered_path):
-                return MatchDecision(
-                    matched=True,
-                    rule_index=prepared.index,
-                    rule=prepared.rule,
-                )
+        posix_path, lowered_path = self._prepare_candidate(rel_path)
+        matches = self._matching_indexes(posix_path, lowered_path)
+        if matches:
+            first = matches[0]
+            prepared = self._prepared[first]
+            return MatchDecision(matched=True, rule_index=first, rule=prepared.rule)
         return MatchDecision(matched=False)
+
+    def matching_rule_indexes(self, rel_path: str) -> tuple[int, ...]:
+        """Return all rule indexes that match ``rel_path``."""
+        posix_path, lowered_path = self._prepare_candidate(rel_path)
+        return self._matching_indexes(posix_path, lowered_path)
 
     def _pattern_matches(
         self,
@@ -87,6 +87,24 @@ class MatchEngine:
             if test_path.match(pattern):
                 return True
         return False
+
+    def _prepare_candidate(self, rel_path: str) -> tuple[PurePosixPath, PurePosixPath | None]:
+        normalized = rel_path.strip("/")
+        candidate = normalized or "."
+        posix_path = PurePosixPath(candidate)
+        lowered_path = PurePosixPath(candidate.lower()) if not self.case_sensitive else None
+        return posix_path, lowered_path
+
+    def _matching_indexes(
+        self,
+        path: PurePosixPath,
+        lowered_path: PurePosixPath | None,
+    ) -> tuple[int, ...]:
+        matches: list[int] = []
+        for prepared in self._prepared:
+            if self._pattern_matches(prepared, path, lowered_path):
+                matches.append(prepared.index)
+        return tuple(matches)
 
     def _expand_patterns(self, pattern: str) -> tuple[str, ...]:
         """Generate pattern variants that treat ``**`` components as optional."""
@@ -110,8 +128,20 @@ class MatchEngine:
     def evaluate_path(self, abs_path: Path, root: Path) -> MatchResult:
         """Evaluate ``abs_path`` relative to ``root`` and return the decision."""
         rel = abs_path.relative_to(root).as_posix()
-        decision = self.match_path(rel)
-        return MatchResult(abs_path=abs_path, rel_path=rel, decision=decision)
+        posix_path, lowered_path = self._prepare_candidate(rel)
+        matches = self._matching_indexes(posix_path, lowered_path)
+        if matches:
+            first = matches[0]
+            prepared = self._prepared[first]
+            decision = MatchDecision(matched=True, rule_index=first, rule=prepared.rule)
+        else:
+            decision = MatchDecision(matched=False)
+        return MatchResult(
+            abs_path=abs_path,
+            rel_path=rel,
+            decision=decision,
+            all_rule_indexes=matches,
+        )
 
     def scan(self, root: Path) -> Iterator[MatchResult]:
         """Yield match results for every entry beneath ``root``."""

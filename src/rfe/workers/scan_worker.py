@@ -141,6 +141,7 @@ class ScanWorker(QObject):
 
         node_type: NodeType = "dir" if abs_path.is_dir() else "file"
         rule_index = match.decision.rule_index
+        rule_ids = list(match.all_rule_indexes)
 
         return PathNode(
             abs_path=abs_path,
@@ -149,7 +150,7 @@ class ScanWorker(QObject):
             size=size,
             mtime=mtime,
             rule_index=rule_index,
-            rule_ids=[rule_index] if rule_index is not None else [],
+            rule_ids=rule_ids,
         )
 
     def _build_tree(
