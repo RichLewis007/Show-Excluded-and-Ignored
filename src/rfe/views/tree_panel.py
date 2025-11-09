@@ -3,20 +3,24 @@
 from __future__ import annotations
 
 import fnmatch
+import os
+import platform
 import re
 from collections.abc import Sequence
 from pathlib import Path
+from shutil import which
 
 from PySide6.QtCore import (
     QItemSelection,
     QModelIndex,
     QPoint,
+    QProcess,
     QRegularExpression,
     QSortFilterProxyModel,
     Qt,
     Signal,
 )
-from PySide6.QtWidgets import QAbstractItemView, QMenu, QTreeView, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QAbstractItemView, QMenu, QMessageBox, QTreeView, QVBoxLayout, QWidget
 
 from rfe.models.fs_model import PathNode, PathTreeModel
 from rfe.models.rules_model import Rule
@@ -92,6 +96,9 @@ class TreePanel(QWidget):
         self._proxy = TreeFilterProxyModel(self)
         self._proxy.setSourceModel(self._model)
         self._current_nodes: list[PathNode] = []
+        self._open_action_label = (
+            "Open in Finder" if platform.system() == "Darwin" else "Open in File Explorer"
+        )
 
         self._tree = QTreeView(self)
         self._tree.setModel(self._proxy)
@@ -153,11 +160,14 @@ class TreePanel(QWidget):
         nodes = self.selected_nodes()
         if not nodes:
             return
-        if any(node.type != "file" for node in nodes):
-            return
         menu = QMenu(self)
-        delete_action = menu.addAction("Delete…")
-        delete_action.triggered.connect(lambda _checked=False: self.deleteRequested.emit())
+        open_action = menu.addAction(self._open_action_label)
+        open_action.triggered.connect(lambda _checked=False: self._open_selected_in_file_manager())
+
+        if all(node.type == "file" for node in nodes):
+            delete_action = menu.addAction("Delete…")
+            delete_action.triggered.connect(lambda _checked=False: self.deleteRequested.emit())
+
         menu.exec(self._tree.viewport().mapToGlobal(point))
 
     def _on_selection_changed(
@@ -227,3 +237,47 @@ class TreePanel(QWidget):
         if not regex.isValid():
             return QRegularExpression()
         return regex
+
+    def _open_selected_in_file_manager(self) -> None:
+        nodes = self.selected_nodes()
+        if not nodes:
+            QMessageBox.information(self, "Open", "Select at least one item to open.")
+            return
+
+        for node in nodes:
+            self._open_path_in_file_manager(node.abs_path, node.type)
+
+    def _open_path_in_file_manager(self, path: Path, node_type: str) -> None:
+        system = platform.system()
+        try:
+            if system == "Darwin":
+                command = "/usr/bin/open"
+                if not Path(command).exists():
+                    raise OSError("Could not locate the 'open' command.")
+                if node_type == "file":
+                    args = ["-R", str(path)]
+                else:
+                    args = [str(path)]
+                QProcess.startDetached(command, args)
+            elif system == "Windows":
+                windows_dir = os.environ.get("WINDIR", r"C:\Windows")
+                command_path = Path(windows_dir) / "explorer.exe"
+                if not command_path.exists():
+                    raise OSError("Could not locate the 'explorer.exe' command.")
+                resolved = str(path.resolve())
+                if node_type == "file":
+                    args = ["/select,", resolved]
+                else:
+                    args = [resolved]
+                QProcess.startDetached(str(command_path), args)
+            else:
+                xdg_command = which("xdg-open")
+                if xdg_command is None:
+                    raise OSError("Could not locate the 'xdg-open' command.")
+                QProcess.startDetached(xdg_command, [str(path)])
+        except OSError as exc:
+            QMessageBox.warning(
+                self,
+                "Open failed",
+                f"Could not open {path} in the file manager.\n\n{exc}",
+            )
