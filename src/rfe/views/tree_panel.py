@@ -176,7 +176,9 @@ class TreePanel(QWidget):
                 for row in range(proxy.rowCount(parent)):
                     index = proxy.index(row, 0, parent)
                     node = index.data(Qt.ItemDataRole.UserRole)
-                    if isinstance(node, PathNode):
+                    if isinstance(node, PathNode) and (
+                        node.rule_index is not None or node.rule_ids
+                    ):
                         collected.append(node)
                     walk(index)
 
@@ -187,7 +189,8 @@ class TreePanel(QWidget):
 
         def flatten(nodes: Sequence[PathNode]) -> None:
             for node in nodes:
-                flattened.append(node)
+                if node.rule_index is not None or node.rule_ids:
+                    flattened.append(node)
                 if node.children:
                     flatten(node.children)
 

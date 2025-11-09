@@ -47,17 +47,44 @@ class PathTreeModel(QStandardItemModel):
         self._rules: Sequence[Rule] = []
 
     def load_nodes(self, nodes: Sequence[PathNode], rules: Sequence[Rule]) -> None:
-        """Populate the model with a fresh tree."""
+        """Populate the model with a fresh tree, hiding unmatched filesystem nodes."""
         self._rules = rules
         self.clear()
         self.setHorizontalHeaderLabels(self.HEADERS)
         for node in nodes:
-            items = self._node_to_items(node)
-            self.appendRow(items)
+            self._append_node(parent_item=None, node=node, prefix="")
 
-    def _node_to_items(self, node: PathNode) -> list[QStandardItem]:
-        """Convert a ``PathNode`` into the items required by the Qt model."""
-        name_item = QStandardItem(node.name)
+    def _append_node(
+        self,
+        *,
+        parent_item: QStandardItem | None,
+        node: PathNode,
+        prefix: str,
+    ) -> None:
+        """Append a node to the model, skipping ones that lack matches."""
+        is_match = bool(node.rule_ids) or node.rule_index is not None
+        segment = node.name
+        display_name = f"{prefix}/{segment}" if prefix else segment
+
+        if not is_match:
+            next_prefix = display_name if segment else prefix
+            for child in node.children:
+                self._append_node(parent_item=parent_item, node=child, prefix=next_prefix)
+            return
+
+        row = self._create_row(node, display_name)
+        if parent_item is None:
+            self.appendRow(row)
+        else:
+            parent_item.appendRow(row)
+
+        name_item = row[0]
+        for child in node.children:
+            self._append_node(parent_item=name_item, node=child, prefix="")
+
+    def _create_row(self, node: PathNode, display_name: str) -> list[QStandardItem]:
+        """Create a standard-item row for ``node``."""
+        name_item = QStandardItem(display_name)
         name_item.setData(node, Qt.ItemDataRole.UserRole)
 
         type_item = QStandardItem(node.type)
@@ -66,13 +93,7 @@ class PathTreeModel(QStandardItemModel):
         rule_item = QStandardItem(self._rule_label(node.rule_index))
         path_item = QStandardItem(str(node.abs_path))
 
-        row = [name_item, type_item, size_item, mtime_item, rule_item, path_item]
-
-        for child in node.children:
-            child_items = self._node_to_items(child)
-            name_item.appendRow(child_items)
-
-        return row
+        return [name_item, type_item, size_item, mtime_item, rule_item, path_item]
 
     def _rule_label(self, index: int | None) -> str:
         """Resolve a rule index into a user-facing label."""

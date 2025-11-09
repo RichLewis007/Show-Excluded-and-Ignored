@@ -51,6 +51,11 @@ def parse_filter_file(path: Path) -> list[Rule]:
         if action is None:
             continue
 
+        if action == "+":
+            pending_label = None
+            pending_color = None
+            continue
+
         rule = Rule(
             action=action,
             pattern=pattern,
