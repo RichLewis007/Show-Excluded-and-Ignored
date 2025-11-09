@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Folder rows render in bold, their full paths include a trailing slash, and the context menu explains that folders cannot be deleted.
 - When no rule checkboxes are active the full source tree is shown; unchecking “Select all” clears the result list.
 - Added File ▸ Quit command (also on the toolbar) with confirmation dialog before closing the app.
+- Clicking a rule highlights its row and colors matching results in the tree with the rule’s tint.
 
 ## [0.1.0] - 2025-11-08
 

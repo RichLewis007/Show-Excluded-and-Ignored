@@ -25,6 +25,7 @@ class RulesPanel(QWidget):
     """Widget listing filter rules with checkboxes."""
 
     selectionChanged = Signal(object)
+    ruleHighlighted = Signal(object)
 
     _fallback_colors: ClassVar[list[str]] = [
         "#1abc9c",
@@ -48,8 +49,9 @@ class RulesPanel(QWidget):
         self._select_all.stateChanged.connect(self._on_select_all_state_changed)
 
         self._list = QListWidget(self)
-        self._list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self._list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._list.itemChanged.connect(self._emit_selection)
+        self._list.itemSelectionChanged.connect(self._on_item_selection_changed)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -58,6 +60,7 @@ class RulesPanel(QWidget):
         self.setLayout(layout)
 
         self._rules: list[Rule] = []
+        self._rule_colors: dict[int, str] = {}
 
     def load_rules_from_path(self, path: Path) -> None:
         """Populate the panel with rules parsed from ``path``."""
@@ -77,6 +80,7 @@ class RulesPanel(QWidget):
         self._list.clear()
         color_cycle = itertools.cycle(self._fallback_colors)
 
+        self._rule_colors.clear()
         self._list.blockSignals(True)
         for index, rule in enumerate(self._rules):
             item = QListWidgetItem(rule.display_label())
@@ -87,6 +91,7 @@ class RulesPanel(QWidget):
             item.setToolTip(tooltip)
 
             color_hex = rule.color or next(color_cycle)
+            self._rule_colors[index] = color_hex
             color = QColor(color_hex)
             if color.isValid():
                 brush = QBrush(color)
@@ -104,6 +109,8 @@ class RulesPanel(QWidget):
         self._select_all.setEnabled(bool(self._rules))
         self._update_select_all_state()
         self._emit_selection()
+        self._list.clearSelection()
+        self.ruleHighlighted.emit(None)
 
     def _emit_selection(self) -> None:
         """Emit the currently selected rule indices."""
@@ -115,10 +122,22 @@ class RulesPanel(QWidget):
                 if isinstance(index, int):
                     selected_indices.append(index)
         self._update_select_all_state()
-        if selected_indices:
-            self.selectionChanged.emit(selected_indices)
-        else:
-            self.selectionChanged.emit(None)
+        self.selectionChanged.emit(selected_indices or None)
+
+    def _on_item_selection_changed(self) -> None:
+        """Emit the highlighted rule index and color when rows are selected."""
+        selected_items = self._list.selectedItems()
+        if not selected_items:
+            self.ruleHighlighted.emit(None)
+            return
+
+        item = selected_items[0]
+        index = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(index, int):
+            self.ruleHighlighted.emit(None)
+            return
+        color_hex = self._rule_colors.get(index)
+        self.ruleHighlighted.emit((index, color_hex))
 
     def _on_select_all_state_changed(self, state: int) -> None:
         """Handle changes to the tri-state “select all” checkbox."""

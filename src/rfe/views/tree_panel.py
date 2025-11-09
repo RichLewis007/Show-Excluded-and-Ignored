@@ -20,6 +20,7 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QLabel,
@@ -111,6 +112,7 @@ class TreePanel(QWidget):
         self._open_action_label = (
             "Open in Finder" if platform.system() == "Darwin" else "Open in File Explorer"
         )
+        self._highlight_rule_index: int | None = None
 
         self._tree = QTreeView(self)
         self._tree.setModel(self._proxy)
@@ -165,6 +167,25 @@ class TreePanel(QWidget):
         else:
             self._proxy.set_rule_filter(rule_indices)
         self._update_summary()
+
+    def on_rule_highlighted(self, payload: object) -> None:
+        """Highlight rows that match the selected rule."""
+        if payload is None:
+            self._highlight_rule_index = None
+            self._model.highlight_rule(None, None)
+            return
+
+        index, color_hex = payload if isinstance(payload, tuple) else (None, None)
+        if not isinstance(index, int):
+            self._highlight_rule_index = None
+            self._model.highlight_rule(None, None)
+            return
+
+        color = QColor(color_hex) if isinstance(color_hex, str) else QColor()
+        if not color.isValid():
+            color = QColor("#FFF59D")  # soft highlight fallback
+        self._highlight_rule_index = index
+        self._model.highlight_rule(index, color)
 
     def selected_paths(self) -> list[Path]:
         """Return absolute paths for the current selection."""

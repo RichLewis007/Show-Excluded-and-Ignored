@@ -151,6 +151,7 @@ class MainWindow(QMainWindow):
         """Connect cross-widget signals and slots."""
         self.search_bar.searchRequested.connect(self.tree_panel.on_search_requested)
         self.rules_panel.selectionChanged.connect(self.tree_panel.on_rules_selection_changed)
+        self.rules_panel.ruleHighlighted.connect(self.tree_panel.on_rule_highlighted)
         self.tree_panel.selectionChanged.connect(self._update_action_states)
         self.tree_panel.deleteRequested.connect(self._prompt_delete_selection)
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import ClassVar, Literal
 
 from PySide6.QtCore import QObject, Qt
-from PySide6.QtGui import QStandardItem, QStandardItemModel
+from PySide6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel
 
 from .rules_model import Rule
 
@@ -121,3 +121,32 @@ class PathTreeModel(QStandardItemModel):
         if mtime is None:
             return ""
         return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+
+    def highlight_rule(self, rule_index: int | None, color: QColor | None) -> None:
+        """Apply background highlighting to rows that match the rule."""
+        brush = QBrush(color) if color is not None else QBrush()
+
+        column_count = len(self.HEADERS)
+
+        def walk(parent: QStandardItem) -> None:
+            for row in range(parent.rowCount()):
+                name_item = parent.child(row, 0)
+                if name_item is None:
+                    continue
+                node = name_item.data(Qt.ItemDataRole.UserRole)
+                matches = False
+                if isinstance(node, PathNode) and rule_index is not None:
+                    matches = node.rule_index == rule_index or rule_index in node.rule_ids
+
+                for column in range(column_count):
+                    item = parent.child(row, column)
+                    if item is None:
+                        continue
+                    if matches and color is not None:
+                        item.setBackground(brush)
+                    else:
+                        item.setBackground(QBrush())
+
+                walk(name_item)
+
+        walk(self.invisibleRootItem())
