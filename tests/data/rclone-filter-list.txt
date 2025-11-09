@@ -1,0 +1,79 @@
+# Rclone matching rules follow a glob style, not regex.
+# But Regexp syntax can be mixed with glob syntax. (dangerous to do!)
+# see: https://rclone.org/filtering/
+# Note: * matches any sequence of non-separator (/) characters
+#
+# Exclude common unwanted files/folders at any level
+
+# Rclone filter rules (converted from exclude list)
+# Exclude unwanted files and folders
+# Uses - <pattern> rules to exclude unwanted files/folders
+# rclone's first-match logic means earlier excludes win unless a higher-priority include is above them.
+# Ends with + * to include all other files
+# Is ready for use with rclone check or rclone sync like this: --filter-from
+#
+###############################################################################
+# macOS System Files
+###############################################################################
+- **/.DS_Store
+- **/._*                    # AppleDouble resource fork files (on non-HFS filesystems)
+- **/.AppleDouble
+- **/.VolumeIcon.icns
+- **/.localized             # Optional: visible folder name localization
+- **/.LSOverride            # Optional: Launch Services overrides
+- **/.com.apple.timemachine.donotpresent
+- **/.TemporaryItems/**     # dir
+- **/.fseventsd/**          # dir
+- **/.Spotlight-V100/**     # dir
+- **/.Trashes/**            # dir
+- **/Backups.backupdb/**    # dir (Time Machine)
+- **/.DocumentRevisions-V100/**  # dir
+- **/Icon?                  # Custom folder icon metadata (e.g., "Icon^M")
+
+###############################################################################
+# Windows System Files
+###############################################################################
+- **/Desktop.ini
+- **/desktop.ini
+- **/ehthumbs.db            # Windows thumbnail cache (like thumbs.db)
+- **/Thumbs.db              # Windows default (case-insensitive)
+- **/thumbs.db              # for Linux (case-sensitive)
+- **/.picasa.ini
+
+###############################################################################
+# Common Temporary, Lock, and Backup Files
+###############################################################################
+- **/*.tmp                  # Temp files from many editors
+- **/*.bak                  # Backup files (common across IDEs/text editors)
+- **/*.~lock.*#             # LibreOffice/OOo lock files
+- **/~$*                    # MS Office autosave/temp files
+- **/*.part                 # Incomplete download/temp files
+- **/*.crdownload           # Chrome download-in-progress
+- **/*.download             # Generic incomplete download suffix
+- **/*.swp                  # Vim swap files
+- **/*.swo
+
+###############################################################################
+# Developer Build and Cache Folders
+###############################################################################
+- **/__pycache__/**         # Python cache folder
+- **/node_modules/**        # dir
+- **/.cocoapods/**          # dir
+- **/.cache/**              # dir
+# might want to keep logs: - **/*.log               # Log files (from builds/tests)
+- **/*.pyo
+- **/dist/**                # Build output
+- **/build/**               # Common C/C++ or Python build folder
+- **/coverage/**            # dir
+- **/*.egg-info/
+# - **/.git/**              # Uncomment if you want to exclude Git metadata
+
+###############################################################################
+# Editor and IDE Configuration Folders
+###############################################################################
+# - **/.vscode/**           # Visual Studio Code workspace config, can get BIG
+# - **/.idea/**             # JetBrains IDE config
+# - **/*.sublime-project
+# - **/*.sublime-workspace
+
++ *  # Include everything else

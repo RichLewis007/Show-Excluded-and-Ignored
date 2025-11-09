@@ -22,6 +22,14 @@ Desktop app for exploring files that match rclone filter rules. Built with PySid
    uv run show-excluded-and-ignored
    ```
 
+## Tests
+
+Run a test to detect all types of files and folders listed in the rclone filter file:
+
+```
+uv run --extra dev pytest tests/integration/test_scanner_finds_excluded_patterns.py
+```
+
 ## Status
 
 Early scaffolding stage. Refer to `docs/program-specifications.md` for the roadmap.

@@ -55,6 +55,7 @@ select = [
 ]
 ignore = [
   "S101",
+  "E501",
 ]
 unfixable = []
 mccabe = { max-complexity = 12 }

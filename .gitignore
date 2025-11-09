@@ -2,8 +2,10 @@
 docs/
 
 # local only files
-rclone-filter-list.txt
-check.sh
+# check.sh
+# run.sh
+# test.sh
+temp/
 
 # Python version managers
 .python-version

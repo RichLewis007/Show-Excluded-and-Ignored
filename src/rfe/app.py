@@ -15,7 +15,7 @@ from .services import config as config_service
 from .services import logger as logger_service
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_FILTER_FILE = REPO_ROOT / "rclone-filter-list.txt"
+DEFAULT_FILTER_FILE = REPO_ROOT / "tests" / "data" / "rclone-filter-list.txt"
 DEFAULT_ROOT_PATH = Path("/Users/rich/Downloads")
 
 

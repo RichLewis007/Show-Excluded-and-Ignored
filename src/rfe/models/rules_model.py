@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -67,7 +68,9 @@ def _parse_rule_line(line: str) -> tuple[str | None, str]:
     if not line:
         return None, ""
     if line[0] in {"+", "-"}:
-        return line[0], line[1:].strip()
+        pattern = line[1:].strip()
+        pattern = re.split(r"\s+#", pattern, maxsplit=1)[0].rstrip()
+        return line[0], pattern
     if line[0] == "!":
         return "!", line[1:].strip()
     return None, line
