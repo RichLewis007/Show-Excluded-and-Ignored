@@ -264,9 +264,18 @@ class MainWindow(QMainWindow):
             )
             return
 
-        count = len(nodes)
-        total_size = sum(node.size or 0 for node in nodes if node.size)
-        preview_lines = [str(node.abs_path) for node in nodes[:10]]
+        file_nodes = [node for node in nodes if node.type == "file"]
+        if not file_nodes:
+            QMessageBox.information(
+                self,
+                "Delete",
+                "Only files can be deleted. Select file entries and try again.",
+            )
+            return
+
+        count = len(file_nodes)
+        total_size = sum(node.size or 0 for node in file_nodes if node.size)
+        preview_lines = [str(node.abs_path) for node in file_nodes[:10]]
         if count > 10:
             preview_lines.append(f"… and {count - 10} more")
 
@@ -287,7 +296,7 @@ class MainWindow(QMainWindow):
         if response != QMessageBox.StandardButton.Yes:
             return
 
-        self._start_delete(nodes)
+        self._start_delete(file_nodes)
 
     def _start_delete(self, nodes: list[PathNode]) -> None:
         """Start the background delete worker for the given nodes."""

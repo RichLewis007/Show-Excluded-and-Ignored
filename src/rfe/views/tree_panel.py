@@ -144,7 +144,7 @@ class TreePanel(QWidget):
         nodes: list[PathNode] = []
         for index in self._tree.selectionModel().selectedRows():
             node = index.data(Qt.ItemDataRole.UserRole)
-            if isinstance(node, PathNode) and node.type == "file":
+            if isinstance(node, PathNode):
                 nodes.append(node)
         return nodes
 
