@@ -12,6 +12,8 @@ from .rules_model import Rule
 
 @dataclass(slots=True)
 class PreparedRule:
+    """Internal representation of a rule with expanded pattern variants."""
+
     rule: Rule
     index: int
     patterns: tuple[str, ...]
@@ -20,6 +22,8 @@ class PreparedRule:
 
 @dataclass(slots=True)
 class MatchDecision:
+    """Outcome of matching a single path."""
+
     matched: bool
     rule_index: int | None = None
     rule: Rule | None = None
@@ -27,6 +31,8 @@ class MatchDecision:
 
 @dataclass(slots=True)
 class MatchResult:
+    """Full matching result for a filesystem path."""
+
     abs_path: Path
     rel_path: str
     decision: MatchDecision
@@ -50,6 +56,7 @@ class MatchEngine:
         ]
 
     def match_path(self, rel_path: str) -> MatchDecision:
+        """Return the first matching rule decision for ``rel_path``."""
         normalized = rel_path.strip("/")
         candidate = normalized or "."
         posix_path = PurePosixPath(candidate)
@@ -70,6 +77,7 @@ class MatchEngine:
         path: PurePosixPath,
         lowered_path: PurePosixPath | None,
     ) -> bool:
+        """Check whether any pattern variant matches the provided path."""
         patterns = prepared.patterns if self.case_sensitive else prepared.patterns_lower
         test_path = (
             path if self.case_sensitive else lowered_path or PurePosixPath(path.as_posix().lower())
@@ -100,11 +108,13 @@ class MatchEngine:
         return tuple(sorted(variants, key=lambda item: (-len(item), item)))
 
     def evaluate_path(self, abs_path: Path, root: Path) -> MatchResult:
+        """Evaluate ``abs_path`` relative to ``root`` and return the decision."""
         rel = abs_path.relative_to(root).as_posix()
         decision = self.match_path(rel)
         return MatchResult(abs_path=abs_path, rel_path=rel, decision=decision)
 
     def scan(self, root: Path) -> Iterator[MatchResult]:
+        """Yield match results for every entry beneath ``root``."""
         root = root.resolve()
         for dirpath, dirnames, filenames in os.walk(root):
             current_dir = Path(dirpath)
@@ -113,6 +123,7 @@ class MatchEngine:
                 yield self.evaluate_path(abs_path, root)
 
     def filter_matches(self, root: Path) -> Iterator[MatchResult]:
+        """Yield only those scan results whose decision matched a rule."""
         for result in self.scan(root):
             if result.decision.matched:
                 yield result

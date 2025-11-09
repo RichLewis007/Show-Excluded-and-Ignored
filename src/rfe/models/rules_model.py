@@ -19,6 +19,7 @@ class Rule:
     color: str | None = None
 
     def display_label(self) -> str:
+        """Return a human-friendly label including the action prefix."""
         label = self.label or self.pattern
         return f"{self.action} {label}"
 
@@ -65,6 +66,7 @@ def parse_filter_file(path: Path) -> list[Rule]:
 
 
 def _parse_rule_line(line: str) -> tuple[str | None, str]:
+    """Split a rule line into its action token and pattern."""
     if not line:
         return None, ""
     if line[0] in {"+", "-"}:
@@ -77,6 +79,7 @@ def _parse_rule_line(line: str) -> tuple[str | None, str]:
 
 
 def _parse_metadata_comment(line: str) -> tuple[str, str] | None:
+    """Extract (key, value) metadata from a comment line, if present."""
     stripped = line.lstrip("#").strip()
     if ":" not in stripped:
         return None

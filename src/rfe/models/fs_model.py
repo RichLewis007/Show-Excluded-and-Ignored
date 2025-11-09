@@ -18,6 +18,8 @@ NodeType = Literal["file", "dir"]
 
 @dataclass(slots=True)
 class PathNode:
+    """Representation of a file-system item participating in the tree view."""
+
     abs_path: Path
     rel_path: str
     type: NodeType
@@ -30,6 +32,7 @@ class PathNode:
 
     @property
     def name(self) -> str:
+        """Return the display name for the node."""
         return self.abs_path.name or self.rel_path
 
 
@@ -44,6 +47,7 @@ class PathTreeModel(QStandardItemModel):
         self._rules: Sequence[Rule] = []
 
     def load_nodes(self, nodes: Sequence[PathNode], rules: Sequence[Rule]) -> None:
+        """Populate the model with a fresh tree."""
         self._rules = rules
         self.clear()
         self.setHorizontalHeaderLabels(self.HEADERS)
@@ -52,6 +56,7 @@ class PathTreeModel(QStandardItemModel):
             self.appendRow(items)
 
     def _node_to_items(self, node: PathNode) -> list[QStandardItem]:
+        """Convert a ``PathNode`` into the items required by the Qt model."""
         name_item = QStandardItem(node.name)
         name_item.setData(node, Qt.ItemDataRole.UserRole)
 
@@ -70,6 +75,7 @@ class PathTreeModel(QStandardItemModel):
         return row
 
     def _rule_label(self, index: int | None) -> str:
+        """Resolve a rule index into a user-facing label."""
         if index is None or index < 0 or index >= len(self._rules):
             return ""
         rule = self._rules[index]
@@ -77,6 +83,7 @@ class PathTreeModel(QStandardItemModel):
 
     @staticmethod
     def _format_size(size: int | None) -> str:
+        """Return a human-readable size string."""
         if size is None:
             return ""
         if size < 1024:
@@ -89,6 +96,7 @@ class PathTreeModel(QStandardItemModel):
 
     @staticmethod
     def _format_mtime(mtime: float | None) -> str:
+        """Format a modified timestamp for presentation."""
         if mtime is None:
             return ""
         return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")

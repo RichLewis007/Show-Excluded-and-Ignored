@@ -26,6 +26,7 @@ class ScanStats:
 
     @property
     def duration(self) -> float | None:
+        """Return the scan duration in seconds, if the scan has finished."""
         if self.end_time is None:
             return None
         return self.end_time - self.start_time
@@ -76,6 +77,7 @@ class ScanWorker(QObject):
     # Internal helpers -------------------------------------------------
 
     def _run_scan(self) -> ScanPayload | None:
+        """Perform the filesystem traversal, respecting cancellation signals."""
         root = self._root_path
         if not root.exists():
             raise FileNotFoundError(f"Root path does not exist: {root}")
@@ -129,6 +131,7 @@ class ScanWorker(QObject):
         return ScanPayload(nodes=tree_nodes, stats=stats)
 
     def _build_node(self, match: MatchResult) -> PathNode:
+        """Create a ``PathNode`` representation for a matched path."""
         abs_path = match.abs_path
         try:
             stat = abs_path.stat()
@@ -179,6 +182,7 @@ class ScanWorker(QObject):
         return list(nodes[root_key].children)
 
     def _create_virtual_parent(self, rel_path: str, nodes: dict[str, PathNode]) -> PathNode:
+        """Create any missing ancestor nodes so children can attach correctly."""
         current = rel_path
         # Build any missing ancestors up to the root.
         missing_paths = []
@@ -199,6 +203,7 @@ class ScanWorker(QObject):
 
     @staticmethod
     def _parent_key(rel_path: str) -> str:
+        """Return the parent key for a given relative path."""
         path = PurePosixPath(rel_path)
         parent = path.parent
         if parent == PurePosixPath("."):
@@ -206,6 +211,7 @@ class ScanWorker(QObject):
         return parent.as_posix()
 
     def _sort_children(self, node: PathNode) -> None:
+        """Recursively sort children so directories appear before files."""
         node.children.sort(key=lambda item: (item.type != "dir", item.name.lower()))
         for child in node.children:
             self._sort_children(child)

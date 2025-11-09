@@ -12,6 +12,7 @@ from .config import APP_NAME, ORG_NAME
 
 
 def _get_log_path() -> Path:
+    """Return the path to the rotating log file, creating folders as needed."""
     dirs = PlatformDirs(appname=APP_NAME, appauthor=ORG_NAME)
     path = Path(dirs.user_log_dir)
     path.mkdir(parents=True, exist_ok=True)

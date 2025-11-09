@@ -20,9 +20,11 @@ class AppStatusBar(QStatusBar):
         self.addPermanentWidget(self._progress, 0)
 
     def set_message(self, message: str) -> None:
+        """Display a textual status update."""
         self._stats.setText(message)
 
     def set_progress(self, fraction: float | None) -> None:
+        """Show progress in the range [0, 1] or hide when ``None``."""
         if fraction is None:
             self._progress.setRange(0, 0)
             self._progress.setVisible(False)

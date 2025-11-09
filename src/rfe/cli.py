@@ -10,6 +10,7 @@ from .models.rules_model import parse_filter_file
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Create and configure the command-line argument parser."""
     parser = argparse.ArgumentParser(
         prog="sei-cli",
         description="Inspect rclone-style filter matches from the command line.",
@@ -35,6 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point for the CLI utility."""
     parser = build_parser()
     args = parser.parse_args(argv)
 

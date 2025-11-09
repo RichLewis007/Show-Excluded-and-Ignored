@@ -50,10 +50,12 @@ class SearchBar(QWidget):
         self._submit.clicked.connect(self._emit_search)
 
     def _emit_search(self) -> None:
+        """Emit a search request using the current widget state."""
         text = self._input.text()
         mode = self._mode.currentText()
         case_sensitive = self._case_toggle.isChecked()
         self.searchRequested.emit(text, mode, case_sensitive)
 
     def set_search_text(self, value: str) -> None:
+        """Programmatically update the search field text."""
         self._input.setText(value)

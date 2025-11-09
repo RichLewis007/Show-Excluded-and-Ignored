@@ -13,6 +13,8 @@ from rfe.services.trash import send_path_to_trash
 
 @dataclass(slots=True)
 class DeleteResult:
+    """Summary of a delete request, split into successes and failures."""
+
     removed: list[Path]
     failed: list[Path]
 
@@ -29,6 +31,7 @@ class DeleteWorker(QObject):
         self._paths = list(paths)
 
     def start(self) -> None:
+        """Delete each requested path, emitting progress and errors."""
         removed: list[Path] = []
         failed: list[Path] = []
         total = len(self._paths)

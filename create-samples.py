@@ -1,33 +1,16 @@
+"""Create a sample tree covering every rule in the bundled filter file.
+
+This utility mirrors the integration-test fixture and is helpful for manual QA
+or demonstrations. Usage examples:
+
+    uv run --extra dev python create-samples.py
+    uv run --extra dev python create-samples.py --output ./temp/samples --force
+
+The ``--extra dev`` flag ensures optional development dependencies are available.
+"""
+
 from __future__ import annotations
 
-# -------------------------------------------------------------
-# create-samples.py
-#
-# Utility script that builds a sample directory tree containing
-# one example for every pattern defined in an rclone filter list file.
-# This is the same data our integration test fabricates; it can
-# be used for manual QA, GUI demos, or to inspect which files are
-# considered “excluded”.
-#
-# Usage:
-#
-#   uv run --extra dev python create-samples.py
-#
-# Optional flags:
-#
-#   --output PATH   Destination directory (default: ./tmp-sample)
-#   --force         Overwrite the destination if it already exists
-#
-# Example:
-#
-#   uv run --extra dev python create-samples.py --output ./temp/samples --force
-#
-# Note: In uv, --extra dev tells it to resolve the optional dependency group
-# named dev from your pyproject.toml while executing the command. That way
-# tools like pytest, mypy, or pre-commit (listed under [project.optional-dependencies].dev)
-# are available for the run. Without the flag, uv would only install the core project dependencies.
-#
-# -------------------------------------------------------------
 import argparse
 import shutil
 from pathlib import Path

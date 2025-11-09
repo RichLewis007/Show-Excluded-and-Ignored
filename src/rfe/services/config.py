@@ -44,6 +44,7 @@ class SettingsStore:
     _settings: QSettings = field(init=False)
 
     def __post_init__(self) -> None:
+        """Initialise the underlying Qt settings store."""
         config_dir = ensure_app_dirs()
         object.__setattr__(self, "_path", config_dir / self.filename)
         object.__setattr__(
@@ -56,23 +57,27 @@ class SettingsStore:
     # Window geometry
 
     def load_window_geometry(self) -> QByteArray | None:
+        """Return the previously stored window geometry, if any."""
         value = self._settings.value(_KEY_WINDOW_GEOMETRY)
         if isinstance(value, QByteArray):
             return value
         return None
 
     def save_window_geometry(self, geometry: QByteArray) -> None:
+        """Persist the provided window geometry snapshot."""
         self._settings.setValue(_KEY_WINDOW_GEOMETRY, geometry)
         self._settings.sync()
 
     @property
     def path(self) -> Path:
+        """Return the filesystem path backing the settings file."""
         return self._path
 
     # ------------------------------------------------------------------
     # Last-used paths & recents
 
     def load_last_paths(self) -> tuple[Path | None, Path | None]:
+        """Fetch the last-used root and filter file paths."""
         root = self._settings.value(_KEY_LAST_ROOT, type=str)
         filt = self._settings.value(_KEY_LAST_FILTER, type=str)
         return (
@@ -81,6 +86,7 @@ class SettingsStore:
         )
 
     def save_last_paths(self, root: Path, filter_file: Path) -> None:
+        """Persist the most recent root/filter combination and update recents."""
         self._settings.setValue(_KEY_LAST_ROOT, str(root))
         self._settings.setValue(_KEY_LAST_FILTER, str(filter_file))
         self._settings.setValue(
@@ -94,12 +100,15 @@ class SettingsStore:
         self._settings.sync()
 
     def recent_roots(self) -> list[str]:
+        """Return the list of recently used root paths."""
         return self._read_recent_list(_KEY_RECENT_ROOTS)
 
     def recent_filters(self) -> list[str]:
+        """Return the list of recently used filter files."""
         return self._read_recent_list(_KEY_RECENT_FILTERS)
 
     def _read_recent_list(self, key: str) -> list[str]:
+        """Read and normalise a list setting from Qt."""
         value = self._settings.value(key)
         if isinstance(value, list):
             return [str(item) for item in value if isinstance(item, str)]
@@ -108,6 +117,7 @@ class SettingsStore:
         return []
 
     def _merge_recent(self, existing: Iterable[str], new_path: str) -> list[str]:
+        """Insert ``new_path`` at the front of the recents list."""
         items = [new_path]
         for item in existing:
             if item not in items:
@@ -118,9 +128,11 @@ class SettingsStore:
     # Export preferences
 
     def load_export_format(self, default: str = "lines") -> str:
+        """Fetch the preferred export format, defaulting to ``default``."""
         value = self._settings.value(_KEY_EXPORT_FORMAT, type=str)
         return value or default
 
     def save_export_format(self, fmt: str) -> None:
+        """Persist the preferred export format."""
         self._settings.setValue(_KEY_EXPORT_FORMAT, fmt)
         self._settings.sync()

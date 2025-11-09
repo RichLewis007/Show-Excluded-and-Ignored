@@ -1,3 +1,5 @@
+"""Integration tests ensuring the bundled filter file matches expected paths."""
+
 from __future__ import annotations
 
 import os
@@ -12,6 +14,7 @@ from rfe.models.rules_model import parse_filter_file
 
 @pytest.fixture(name="patterns_dir")
 def fixture_patterns_dir(tmp_path: Path) -> Path:
+    """Build a representative directory tree covering the sample filter file."""
     root = tmp_path / "samples"
     root.mkdir()
 
@@ -65,6 +68,7 @@ def fixture_patterns_dir(tmp_path: Path) -> Path:
 
 
 def test_match_engine_flags_patterns(patterns_dir: Path) -> None:
+    """Ensure every expected pattern is matched by the filter file."""
     repo_root = Path(__file__).resolve().parents[2]
     filter_file = repo_root / "tests" / "data" / "rclone-filter-list.txt"
     rules = parse_filter_file(filter_file)

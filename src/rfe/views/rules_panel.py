@@ -60,6 +60,7 @@ class RulesPanel(QWidget):
         self._rules: list[Rule] = []
 
     def load_rules_from_path(self, path: Path) -> None:
+        """Populate the panel with rules parsed from ``path``."""
         try:
             self._rules = parse_filter_file(path)
         except OSError as exc:  # pragma: no cover - UI feedback
@@ -72,6 +73,7 @@ class RulesPanel(QWidget):
         self._populate_list()
 
     def _populate_list(self) -> None:
+        """Refresh the list widget with the current rule set."""
         self._list.clear()
         color_cycle = itertools.cycle(self._fallback_colors)
 
@@ -98,6 +100,7 @@ class RulesPanel(QWidget):
         self._emit_selection()
 
     def _emit_selection(self) -> None:
+        """Emit the currently selected rule indices."""
         selected_indices: list[int] = []
         for i in range(self._list.count()):
             item = self._list.item(i)
@@ -109,6 +112,7 @@ class RulesPanel(QWidget):
         self.selectionChanged.emit(selected_indices)
 
     def _on_select_all_state_changed(self, state: int) -> None:
+        """Handle changes to the tri-state “select all” checkbox."""
         if self._updating_checkbox_state:
             return
 
@@ -119,6 +123,7 @@ class RulesPanel(QWidget):
         self._set_all_items(check_state)
 
     def _set_all_items(self, state: Qt.CheckState) -> None:
+        """Apply the same check state to every list item."""
         self._list.blockSignals(True)
         for i in range(self._list.count()):
             item = self._list.item(i)
@@ -127,6 +132,7 @@ class RulesPanel(QWidget):
         self._emit_selection()
 
     def _update_select_all_state(self) -> None:
+        """Synchronise the tri-state checkbox with individual item states."""
         if not self._rules:
             self._set_select_all_state(Qt.CheckState.Unchecked)
             return
@@ -144,6 +150,7 @@ class RulesPanel(QWidget):
             self._set_select_all_state(Qt.CheckState.PartiallyChecked)
 
     def _set_select_all_state(self, state: Qt.CheckState) -> None:
+        """Update the select-all checkbox without triggering loops."""
         self._updating_checkbox_state = True
         try:
             self._select_all.setCheckState(state)
@@ -152,4 +159,5 @@ class RulesPanel(QWidget):
 
     @property
     def rules(self) -> list[Rule]:
+        """Return the current list of rules."""
         return self._rules

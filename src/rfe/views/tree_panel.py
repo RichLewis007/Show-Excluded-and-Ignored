@@ -33,14 +33,17 @@ class TreeFilterProxyModel(QSortFilterProxyModel):
         self.setRecursiveFilteringEnabled(True)
 
     def set_search_regex(self, regex: QRegularExpression | None) -> None:
+        """Update the active search regex and re-filter the view."""
         self._search_regex = regex
         self.invalidateFilter()
 
     def set_rule_filter(self, rule_indices: Sequence[int]) -> None:
+        """Limit matches to the supplied rule indices."""
         self._rule_filter = set(rule_indices) if rule_indices else None
         self.invalidateFilter()
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # type: ignore[override]
+        """Decide whether a source-model row passes the current filters."""
         source_model = self.sourceModel()
         if source_model is None:
             return False
@@ -58,6 +61,7 @@ class TreeFilterProxyModel(QSortFilterProxyModel):
         return False
 
     def _matches(self, index: QModelIndex) -> bool:
+        """Return True when the node represented by ``index`` matches filters."""
         node = index.data(Qt.ItemDataRole.UserRole)
         if not isinstance(node, PathNode):
             return True
@@ -108,6 +112,7 @@ class TreePanel(QWidget):
         self.setLayout(layout)
 
     def load_nodes(self, nodes: Sequence[PathNode], rules: Sequence[Rule]) -> None:
+        """Load a fresh tree of nodes into the view."""
         self._model.load_nodes(nodes, rules)
         self._current_nodes = list(nodes)
         self._tree.expandToDepth(0)
@@ -118,19 +123,24 @@ class TreePanel(QWidget):
         self.selectionChanged.emit()
 
     def set_root_path(self, path: Path) -> None:
+        """Record the root path in the widget's accessible metadata."""
         self._tree.setWhatsThis(f"Root path: {path}")
 
     def on_search_requested(self, text: str, mode: SearchMode, case_sensitive: bool) -> None:
+        """Update the filter proxy based on a search request."""
         regex = self._build_regex(text, mode, case_sensitive)
         self._proxy.set_search_regex(regex)
 
     def on_rules_selection_changed(self, rule_indices: list[int]) -> None:
+        """React to rule selection changes from the rules panel."""
         self._proxy.set_rule_filter(rule_indices)
 
     def selected_paths(self) -> list[Path]:
+        """Return absolute paths for the current selection."""
         return [node.abs_path for node in self.selected_nodes()]
 
     def selected_nodes(self) -> list[PathNode]:
+        """Return ``PathNode`` objects for the current selection."""
         nodes: list[PathNode] = []
         for index in self._tree.selectionModel().selectedRows():
             node = index.data(Qt.ItemDataRole.UserRole)
@@ -139,6 +149,7 @@ class TreePanel(QWidget):
         return nodes
 
     def _show_context_menu(self, point: QPoint) -> None:
+        """Display a context menu with destructive actions."""
         if not self.selected_nodes():
             return
         menu = QMenu(self)
@@ -151,10 +162,12 @@ class TreePanel(QWidget):
         selected: QItemSelection,
         deselected: QItemSelection,
     ) -> None:
+        """Forward selection changes to listeners."""
         _ = selected, deselected
         self.selectionChanged.emit()
 
     def collect_nodes(self, *, visible_only: bool) -> list[PathNode]:
+        """Collect nodes from the model, optionally limited to visible rows."""
         if visible_only:
             collected: list[PathNode] = []
 
@@ -187,6 +200,7 @@ class TreePanel(QWidget):
         mode: SearchMode,
         case_sensitive: bool,
     ) -> QRegularExpression | None:
+        """Build a regular expression reflecting the search request."""
         if not text:
             return None
 

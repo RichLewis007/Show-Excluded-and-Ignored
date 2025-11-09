@@ -1,3 +1,5 @@
+"""Unit tests for the ``MatchEngine`` logic."""
+
 from pathlib import Path
 
 from rfe.models.match_engine import MatchEngine
@@ -5,6 +7,7 @@ from rfe.models.rules_model import Rule
 
 
 def make_rule(action: str, pattern: str, lineno: int) -> Rule:
+    """Convenience helper to instantiate ``Rule`` objects for tests."""
     return Rule(action=action, pattern=pattern, lineno=lineno, enabled=True)
 
 
