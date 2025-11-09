@@ -95,7 +95,10 @@ class PathTreeModel(QStandardItemModel):
         size_item = QStandardItem(self._format_size(node.size))
         mtime_item = QStandardItem(self._format_mtime(node.mtime))
         rule_item = QStandardItem(self._rule_label(node.rule_index))
-        path_item = QStandardItem(str(node.abs_path))
+        path_str = str(node.abs_path)
+        if node.type == "dir" and not path_str.endswith("/"):
+            path_str += "/"
+        path_item = QStandardItem(path_str)
 
         return [name_item, type_item, size_item, mtime_item, rule_item, path_item]
 

@@ -41,9 +41,12 @@ class TreeFilterProxyModel(QSortFilterProxyModel):
         self._search_regex = regex
         self.invalidateFilter()
 
-    def set_rule_filter(self, rule_indices: Sequence[int]) -> None:
+    def set_rule_filter(self, rule_indices: Sequence[int] | None) -> None:
         """Limit matches to the supplied rule indices."""
-        self._rule_filter = set(rule_indices) if rule_indices else None
+        if rule_indices is None:
+            self._rule_filter = None
+        else:
+            self._rule_filter = set(rule_indices)
         self.invalidateFilter()
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # type: ignore[override]
@@ -74,7 +77,7 @@ class TreeFilterProxyModel(QSortFilterProxyModel):
             candidate_rules = set(node.rule_ids)
             if node.rule_index is not None:
                 candidate_rules.add(node.rule_index)
-            if not candidate_rules.intersection(self._rule_filter):
+            if not self._rule_filter or not candidate_rules.intersection(self._rule_filter):
                 return False
 
         if self._search_regex is None or not self._search_regex.pattern():
