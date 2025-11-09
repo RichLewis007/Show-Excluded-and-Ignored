@@ -122,10 +122,9 @@ class PathTreeModel(QStandardItemModel):
             return ""
         return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
 
-    def highlight_rule(self, rule_index: int | None, color: QColor | None) -> None:
-        """Apply background highlighting to rows that match the rule."""
+    def highlight_rule(self, rel_paths: set[str], color: QColor | None) -> None:
+        """Apply background highlighting to rows whose relative paths match ``rel_paths``."""
         brush = QBrush(color) if color is not None else QBrush()
-
         column_count = len(self.HEADERS)
 
         def walk(parent: QStandardItem) -> None:
@@ -134,9 +133,7 @@ class PathTreeModel(QStandardItemModel):
                 if name_item is None:
                     continue
                 node = name_item.data(Qt.ItemDataRole.UserRole)
-                matches = False
-                if isinstance(node, PathNode) and rule_index is not None:
-                    matches = node.rule_index == rule_index or rule_index in node.rule_ids
+                matches = isinstance(node, PathNode) and node.rel_path in rel_paths
 
                 for column in range(column_count):
                     item = parent.child(row, column)

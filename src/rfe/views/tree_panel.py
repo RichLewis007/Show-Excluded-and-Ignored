@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from rfe.models.fs_model import PathNode, PathTreeModel
+from rfe.models.match_engine import MatchEngine
 from rfe.models.rules_model import Rule
 from rfe.views.search_bar import SearchMode
 
@@ -113,6 +114,8 @@ class TreePanel(QWidget):
             "Open in Finder" if platform.system() == "Darwin" else "Open in File Explorer"
         )
         self._highlight_rule_index: int | None = None
+        self._highlight_paths: set[str] = set()
+        self._rules: list[Rule] = []
 
         self._tree = QTreeView(self)
         self._tree.setModel(self._proxy)
@@ -140,6 +143,7 @@ class TreePanel(QWidget):
         """Load a fresh tree of nodes into the view."""
         self._model.load_nodes(nodes, rules)
         self._current_nodes = list(nodes)
+        self._rules = list(rules)
         self._tree.expandToDepth(0)
         header = self._tree.header()
         header.setStretchLastSection(True)
@@ -147,6 +151,9 @@ class TreePanel(QWidget):
             self._tree.resizeColumnToContents(column)
         self.selectionChanged.emit()
         self._update_summary()
+        self._highlight_rule_index = None
+        self._highlight_paths = set()
+        self._model.highlight_rule(set(), None)
 
     def set_root_path(self, path: Path) -> None:
         """Record the root path in the widget's accessible metadata."""
@@ -172,14 +179,16 @@ class TreePanel(QWidget):
         """Highlight rows that match the selected rule."""
         if payload is None:
             self._highlight_rule_index = None
-            self._model.highlight_rule(None, None)
+            self._highlight_paths = set()
+            self._model.highlight_rule(set(), None)
             self._update_summary()
             return
 
         index, color_hex = payload if isinstance(payload, tuple) else (None, None)
-        if not isinstance(index, int):
+        if not isinstance(index, int) or index < 0 or index >= len(self._rules):
             self._highlight_rule_index = None
-            self._model.highlight_rule(None, None)
+            self._highlight_paths = set()
+            self._model.highlight_rule(set(), None)
             self._update_summary()
             return
 
@@ -187,7 +196,15 @@ class TreePanel(QWidget):
         if not color.isValid():
             color = QColor("#FFF59D")  # soft highlight fallback
         self._highlight_rule_index = index
-        self._model.highlight_rule(index, color)
+        rule = self._rules[index]
+        engine = MatchEngine([rule], case_sensitive=True)
+        paths = {
+            node.rel_path
+            for node in self.collect_nodes(visible_only=False)
+            if engine.matching_rule_indexes(node.rel_path)
+        }
+        self._highlight_paths = paths
+        self._model.highlight_rule(paths, color)
         self._update_summary()
 
     def selected_paths(self) -> list[Path]:
@@ -272,13 +289,13 @@ class TreePanel(QWidget):
         if self._highlight_rule_index is not None:
             highlight_files = 0
             highlight_dirs = 0
-            index = self._highlight_rule_index
-            for node in nodes:
-                if node.rule_index == index or index in node.rule_ids:
-                    if node.type == "file":
-                        highlight_files += 1
-                    else:
-                        highlight_dirs += 1
+            if self._highlight_paths:
+                for node in nodes:
+                    if node.rel_path in self._highlight_paths:
+                        if node.type == "file":
+                            highlight_files += 1
+                        else:
+                            highlight_dirs += 1
             highlight_total = highlight_files + highlight_dirs
             parts.append(
                 f"Highlighted: {highlight_total} ({highlight_files} files, {highlight_dirs} folders)"
