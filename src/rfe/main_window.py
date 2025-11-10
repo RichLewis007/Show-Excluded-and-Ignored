@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QMainWindow,
     QMessageBox,
+    QStyle,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -26,6 +27,7 @@ from .models.fs_model import PathNode
 from .models.rules_model import parse_filter_file
 from .services.config import SettingsStore
 from .views.rules_panel import RulesPanel
+from .views.scan_progress_dialog import ScanProgressDialog
 from .views.search_bar import SearchBar
 from .views.status_bar import AppStatusBar
 from .views.tree_panel import TreePanel
@@ -63,6 +65,7 @@ class MainWindow(QMainWindow):
         self._last_export_format = self._settings_store.load_export_format()
         self._scan_running = False
         self._pause_requested = False
+        self._progress_dialog: ScanProgressDialog | None = None
 
         self.setWindowTitle("Ghost Files Finder")
         self.resize(1200, 800)
@@ -102,42 +105,53 @@ class MainWindow(QMainWindow):
         # Build the window toolbar and key QAction objects.
         toolbar = QToolBar("Main actions", self)
         toolbar.setMovable(False)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.addToolBar(toolbar)
 
         self.scan_action = QAction("Scan", self)
         self.scan_action.triggered.connect(self._start_scan)
+        self.scan_action.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+        self.scan_action.setToolTip("Start scanning")
         toolbar.addAction(self.scan_action)
-
-        self.pause_action = QAction("Pause", self)
-        self.pause_action.setEnabled(False)
-        self.pause_action.triggered.connect(self._pause_scan)
-        toolbar.addAction(self.pause_action)
-
-        self.cancel_action = QAction("Cancel", self)
-        self.cancel_action.setEnabled(False)
-        self.cancel_action.triggered.connect(self._cancel_scan)
-        toolbar.addAction(self.cancel_action)
 
         self.select_root_action = QAction("Source folder..", self)
         self.select_root_action.triggered.connect(self._prompt_select_root)
+        self.select_root_action.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon)
+        )
+        self.select_root_action.setToolTip("Choose source folder")
         toolbar.addAction(self.select_root_action)
 
         self.open_action = QAction("Rules file..", self)
         self.open_action.triggered.connect(self._prompt_open_filter_file)
+        self.open_action.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
+        )
+        self.open_action.setToolTip("Open rules file")
         toolbar.addAction(self.open_action)
 
         self.delete_action = QAction("Delete..", self)
         self.delete_action.setEnabled(False)
         self.delete_action.triggered.connect(self._prompt_delete_selection)
+        self.delete_action.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+        self.delete_action.setToolTip("Delete selected files")
         toolbar.addAction(self.delete_action)
 
         self.export_action = QAction("Export results..", self)
         self.export_action.setEnabled(False)
         self.export_action.triggered.connect(self._prompt_export)
+        self.export_action.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
+        )
+        self.export_action.setToolTip("Export visible results")
         toolbar.addAction(self.export_action)
 
         self.quit_action = QAction("Quit", self)
         self.quit_action.triggered.connect(self._prompt_exit)
+        self.quit_action.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton)
+        )
+        self.quit_action.setToolTip("Quit Ghost Files Finder")
         toolbar.addAction(self.quit_action)
 
         file_menu = self.menuBar().addMenu("&File")
@@ -200,7 +214,27 @@ class MainWindow(QMainWindow):
             self.rules_panel.load_rules_from_path(self._filter_file)
 
         self.tree_panel.set_root_path(self._root_path)
-        self._start_scan()
+        self.status_bar.set_message("Ready to scan.")
+
+    def _get_progress_dialog(self) -> ScanProgressDialog:
+        # Lazily create the scan progress dialog.
+        if self._progress_dialog is None:
+            dialog = ScanProgressDialog(self)
+            dialog.scanRequested.connect(self._on_dialog_scan_requested)
+            dialog.pauseRequested.connect(self._pause_scan)
+            dialog.cancelRequested.connect(self._cancel_scan)
+            self._progress_dialog = dialog
+        return self._progress_dialog
+
+    def _show_progress_dialog(self) -> ScanProgressDialog:
+        # Display the modal scan progress dialog.
+        dialog = self._get_progress_dialog()
+        dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        if not dialog.isVisible():
+            dialog.open()
+        dialog.raise_()
+        dialog.activateWindow()
+        return dialog
 
     # ------------------------------------------------------------------
     # Scanning lifecycle
@@ -221,6 +255,9 @@ class MainWindow(QMainWindow):
         self.status_bar.set_progress(None)
         self._set_controls_enabled(False)
         self._set_scan_running(True)
+
+        progress_dialog = self._show_progress_dialog()
+        progress_dialog.prepare_for_scan(self._root_path)
 
         worker = ScanWorker(root_path=self._root_path, rules=self.rules_panel.rules)
         thread = QThread(self)
@@ -256,6 +293,8 @@ class MainWindow(QMainWindow):
             self._scan_thread = None
             self._scan_worker = None
             self._set_scan_running(False)
+        if self._progress_dialog is not None and not self._scan_running:
+            self._progress_dialog.set_running(False)
 
     def _on_scan_progress(self, scanned: int, matched: int, current_path: str) -> None:
         # Update progress feedback while scanning.
@@ -263,6 +302,8 @@ class MainWindow(QMainWindow):
         if current_path and current_path not in {"", "done"}:
             parts.append(current_path)
         self.status_bar.set_message(" — ".join(parts))
+        if self._progress_dialog is not None:
+            self._progress_dialog.update_progress(scanned, matched, current_path)
 
     def _on_scan_finished(self, payload: ScanPayload) -> None:
         # Handle completion of a scan by updating the tree and status.
@@ -279,6 +320,9 @@ class MainWindow(QMainWindow):
         self._settings_store.save_last_paths(self._root_path, self._filter_file)
         self._update_action_states()
         self._set_scan_running(False)
+        if self._progress_dialog is not None:
+            self._progress_dialog.show_finished()
+            self._progress_dialog.close()
 
     def _on_scan_error(self, message: str) -> None:
         # Surface scan failures to the user.
@@ -286,23 +330,33 @@ class MainWindow(QMainWindow):
         self._set_controls_enabled(True)
         QMessageBox.critical(self, "Scan failed", message)
         self._set_scan_running(False)
+        if self._progress_dialog is not None:
+            self._progress_dialog.show_error("Scan failed.")
+            self._progress_dialog.close()
 
     def _on_scan_cancelled(self) -> None:
         # Reset UI after a cancelled scan.
-        if self._pause_requested:
-            self.status_bar.set_message("Scan paused.")
-        else:
-            self.status_bar.set_message("Scan cancelled.")
+        status_text = "Scan paused." if self._pause_requested else "Scan cancelled."
+        self.status_bar.set_message(status_text)
         self.status_bar.set_progress(None)
         self._set_controls_enabled(True)
         self._set_scan_running(False)
         self._pause_requested = False
+        if self._progress_dialog is not None:
+            self._progress_dialog.show_status(status_text)
+            self._progress_dialog.close()
 
     def _on_scan_thread_finished(self) -> None:
         # Clear references once the scan thread exits.
         self._scan_thread = None
         self._scan_worker = None
         self._set_scan_running(False)
+
+    def _on_dialog_scan_requested(self) -> None:
+        # Start a scan when requested via the progress dialog.
+        if self._scan_running:
+            return
+        self._start_scan()
 
     # ------------------------------------------------------------------
     # Filter file management
@@ -695,10 +749,6 @@ class MainWindow(QMainWindow):
         self._scan_running = running
         if hasattr(self, "scan_action"):
             self.scan_action.setEnabled(not running and bool(self.rules_panel.rules))
-        if hasattr(self, "pause_action"):
-            self.pause_action.setEnabled(running)
-        if hasattr(self, "cancel_action"):
-            self.cancel_action.setEnabled(running)
 
     def _pause_scan(self) -> None:
         if not self._scan_running:

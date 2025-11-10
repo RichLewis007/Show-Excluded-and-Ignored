@@ -28,14 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Double-click rename updates files on disk while keeping highlights and summary counts in sync.
 - Results footer now shows live file/folder totals plus highlighted counts, and the tree exposes “Expand all” / “Collapse all” controls.
 - Clearing the search field immediately re-runs the filter so visible results reset without extra clicks.
-- Modal scanning dialog mirrors footer progress (long-path friendly) and hosts Scan / Pause / Cancel buttons.
+- Modal scanning dialog mirrors footer progress (long-path friendly), now owns the Scan / Pause / Cancel controls, and stays larger to accommodate long paths.
 - macOS builds now show “Ghost Files Finder” as the app name and use a bundled window icon.
+- Toolbar now presents icon-only buttons for scan, source root, rules file, delete, export, and quit actions.
 
 ### Changed
 
 - Removed the `**/Icon?` filter rule and its Icon sample data from fixtures and tests.
 - `create-samples.py` now relies solely on the shared fixture helper; manual extras were removed to avoid divergence.
 - Replaced module/class/function docstrings with block comments to standardise documentation style project-wide.
+- Removed Pause and Cancel toolbar actions in favour of dialog-hosted controls for scanning.
+- Startup no longer triggers an immediate scan; the user initiates scanning explicitly.
 - Updated app metadata and configuration directories to use the “Ghost Files Finder” identity and credit Rich Lewis as the author.
 
 ## [0.1.0] - 2025-11-08

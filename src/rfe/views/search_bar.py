@@ -1,9 +1,11 @@
 # Search bar widget.
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -14,6 +16,8 @@ from PySide6.QtWidgets import (
 )
 
 SearchMode = Literal["text", "glob", "regex"]
+
+_ASSET_IMAGE = Path(__file__).resolve().parents[3] / "assets" / "in-app-ghost-pic.png"
 
 
 class SearchBar(QWidget):
@@ -43,6 +47,20 @@ class SearchBar(QWidget):
         layout.addWidget(self._mode)
         layout.addWidget(self._case_toggle)
         layout.addWidget(self._submit)
+
+        self._badge_label = QLabel(self)
+        self._badge_label.setVisible(False)
+        if _ASSET_IMAGE.exists():
+            pixmap = QPixmap(str(_ASSET_IMAGE))
+            if not pixmap.isNull():
+                scaled = pixmap.scaledToHeight(64, Qt.TransformationMode.SmoothTransformation)
+                self._badge_label.setPixmap(scaled)
+                self._badge_label.setAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
+                self._badge_label.setVisible(True)
+        layout.addWidget(self._badge_label)
+
         self.setLayout(layout)
 
         self._input.returnPressed.connect(self._emit_search)

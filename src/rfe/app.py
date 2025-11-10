@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication
 
 # Application entry point for Ghost Files Finder.
@@ -47,18 +47,96 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _set_macos_process_metadata(name: str) -> None:
+    # Update the running process metadata so macOS shows our app name.
+    if sys.platform != "darwin":
+        return
+    try:
+        from ctypes import CFUNCTYPE, c_char_p, c_void_p, cdll, util
+    except ImportError:
+        return
+
+    libobjc_path = util.find_library("objc")
+    if not libobjc_path:
+        return
+
+    try:
+        objc = cdll.LoadLibrary(libobjc_path)
+    except OSError:
+        return
+
+    objc.objc_getClass.restype = c_void_p
+    objc.objc_getClass.argtypes = [c_char_p]
+    objc.sel_registerName.restype = c_void_p
+    objc.sel_registerName.argtypes = [c_char_p]
+
+    msg_send = CFUNCTYPE(c_void_p, c_void_p, c_void_p)(("objc_msgSend", objc))
+    msg_send_char = CFUNCTYPE(c_void_p, c_void_p, c_void_p, c_char_p)(("objc_msgSend", objc))
+    msg_send_void = CFUNCTYPE(c_void_p, c_void_p, c_void_p, c_void_p)(("objc_msgSend", objc))
+    msg_send_void_void = CFUNCTYPE(c_void_p, c_void_p, c_void_p, c_void_p, c_void_p)(
+        ("objc_msgSend", objc)
+    )
+
+    NSString = objc.objc_getClass(b"NSString")
+    if not NSString:
+        return
+
+    alloc = objc.sel_registerName(b"alloc")
+    init_utf8 = objc.sel_registerName(b"initWithUTF8String:")
+
+    def _ns_string(value: str) -> c_void_p:
+        encoded = value.encode("utf-8")
+        return msg_send_char(msg_send(NSString, alloc), init_utf8, encoded)
+
+    ns_name = _ns_string(name)
+    NSProcessInfo = objc.objc_getClass(b"NSProcessInfo")
+    if NSProcessInfo:
+        process_info = msg_send(NSProcessInfo, objc.sel_registerName(b"processInfo"))
+        if process_info:
+            msg_send_void(process_info, objc.sel_registerName(b"setProcessName:"), ns_name)
+
+    NSBundle = objc.objc_getClass(b"NSBundle")
+    if not NSBundle:
+        return
+
+    main_bundle = msg_send(NSBundle, objc.sel_registerName(b"mainBundle"))
+    if not main_bundle:
+        return
+
+    info_dict = msg_send(main_bundle, objc.sel_registerName(b"infoDictionary"))
+    if not info_dict:
+        return
+
+    set_object = objc.sel_registerName(b"setObject:forKey:")
+    bundle_name_key = _ns_string("CFBundleName")
+    bundle_display_key = _ns_string("CFBundleDisplayName")
+    try:
+        msg_send_void_void(info_dict, set_object, ns_name, bundle_name_key)
+        msg_send_void_void(info_dict, set_object, ns_name, bundle_display_key)
+    except (OSError, TypeError, ValueError):
+        return
+
+
 def _ensure_qapp() -> QApplication:
     # Return the active QApplication, creating one if needed.
     existing = QApplication.instance()
     if existing is not None:
         return existing
 
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
-    app = QApplication(sys.argv)
     app_name = "Ghost Files Finder"
     org_name = "Rich Lewis"
     org_domain = "ghost-files-finder.local"
+
+    _set_macos_process_metadata(app_name)
+
+    QGuiApplication.setApplicationName(app_name)
+    QGuiApplication.setApplicationDisplayName(app_name)
+    QGuiApplication.setOrganizationName(org_name)
+    QGuiApplication.setOrganizationDomain(org_domain)
+
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
+    app = QApplication(sys.argv)
     app.setApplicationName(app_name)
     app.setApplicationDisplayName(app_name)
     app.setOrganizationName(org_name)
