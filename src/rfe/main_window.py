@@ -10,14 +10,13 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread
-from PySide6.QtGui import QAction, QCloseEvent
+from PySide6.QtGui import QAction, QCloseEvent, QIcon
 from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QGroupBox,
     QMainWindow,
     QMessageBox,
-    QStyle,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -35,6 +34,17 @@ from .workers.delete_worker import DeleteResult, DeleteWorker
 from .workers.scan_worker import ScanPayload, ScanWorker
 
 logger = logging.getLogger(__name__)
+
+ICON_ROOT = Path(__file__).resolve().parents[1] / "resources" / "icons" / "feather"
+
+
+def _icon(name: str) -> QIcon:
+    # Load a Feather icon from the bundled resources, logging a warning if missing.
+    path = ICON_ROOT / f"{name}.svg"
+    if not path.exists():
+        logger.warning("Toolbar icon missing: %s", path)
+        return QIcon()
+    return QIcon(str(path))
 
 
 class MainWindow(QMainWindow):
@@ -110,47 +120,39 @@ class MainWindow(QMainWindow):
 
         self.scan_action = QAction("Scan", self)
         self.scan_action.triggered.connect(self._start_scan)
-        self.scan_action.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+        self.scan_action.setIcon(_icon("play"))
         self.scan_action.setToolTip("Start scanning")
         toolbar.addAction(self.scan_action)
 
         self.select_root_action = QAction("Source folder..", self)
         self.select_root_action.triggered.connect(self._prompt_select_root)
-        self.select_root_action.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon)
-        )
+        self.select_root_action.setIcon(_icon("folder"))
         self.select_root_action.setToolTip("Choose source folder")
         toolbar.addAction(self.select_root_action)
 
         self.open_action = QAction("Rules file..", self)
         self.open_action.triggered.connect(self._prompt_open_filter_file)
-        self.open_action.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
-        )
+        self.open_action.setIcon(_icon("file-text"))
         self.open_action.setToolTip("Open rules file")
         toolbar.addAction(self.open_action)
 
         self.delete_action = QAction("Delete..", self)
         self.delete_action.setEnabled(False)
         self.delete_action.triggered.connect(self._prompt_delete_selection)
-        self.delete_action.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+        self.delete_action.setIcon(_icon("trash-2"))
         self.delete_action.setToolTip("Delete selected files")
         toolbar.addAction(self.delete_action)
 
         self.export_action = QAction("Export results..", self)
         self.export_action.setEnabled(False)
         self.export_action.triggered.connect(self._prompt_export)
-        self.export_action.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
-        )
+        self.export_action.setIcon(_icon("download"))
         self.export_action.setToolTip("Export visible results")
         toolbar.addAction(self.export_action)
 
         self.quit_action = QAction("Quit", self)
         self.quit_action.triggered.connect(self._prompt_exit)
-        self.quit_action.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton)
-        )
+        self.quit_action.setIcon(_icon("x-circle"))
         self.quit_action.setToolTip("Quit Ghost Files Finder")
         toolbar.addAction(self.quit_action)
 
