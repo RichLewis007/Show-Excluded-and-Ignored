@@ -122,8 +122,8 @@ class ScanProgressDialog(QDialog):
         self._path_label.setWordWrap(True)
         self._path_label.setTextFormat(Qt.TextFormat.RichText)
         self._path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._path_label.setMinimumHeight(48)
-        self._path_label.setStyleSheet("")
+        self._path_label.setMinimumHeight(52)
+        self._path_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self._path_label.setSizePolicy(
             QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         )
