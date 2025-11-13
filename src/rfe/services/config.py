@@ -17,6 +17,7 @@ _KEY_LAST_FILTER = "paths/last_filter"
 _KEY_RECENT_ROOTS = "paths/recent_roots"
 _KEY_RECENT_FILTERS = "paths/recent_filters"
 _KEY_EXPORT_FORMAT = "export/default_format"
+_KEY_EXPORT_VISIBLE_ONLY = "export/visible_only"
 
 _RECENT_LIMIT = 5
 
@@ -134,4 +135,18 @@ class SettingsStore:
     def save_export_format(self, fmt: str) -> None:
         # Persist the preferred export format.
         self._settings.setValue(_KEY_EXPORT_FORMAT, fmt)
+        self._settings.sync()
+
+    def load_export_visible_only(self, default: bool = True) -> bool:
+        # Return whether exports should default to visible rows only.
+        value = self._settings.value(_KEY_EXPORT_VISIBLE_ONLY)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in {"1", "true", "yes", "on"}
+        return default
+
+    def save_export_visible_only(self, visible_only: bool) -> None:
+        # Persist the user's export scope preference.
+        self._settings.setValue(_KEY_EXPORT_VISIBLE_ONLY, visible_only)
         self._settings.sync()

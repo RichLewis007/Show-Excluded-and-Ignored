@@ -12,6 +12,7 @@ from pathlib import Path
 from PySide6.QtCore import QSize, Qt, QThread
 from PySide6.QtGui import QAction, QCloseEvent, QIcon
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDockWidget,
     QFileDialog,
     QGroupBox,
@@ -79,6 +80,7 @@ class MainWindow(QMainWindow):
         self._controls_enabled = True
         self._last_scan_nodes: list[PathNode] = []
         self._last_export_format = self._settings_store.load_export_format()
+        self._export_visible_only = self._settings_store.load_export_visible_only()
         self._scan_running = False
         self._pause_requested = False
         self._progress_dialog: ScanProgressDialog | None = None
@@ -396,7 +398,6 @@ class MainWindow(QMainWindow):
         # Start a scan when requested via the progress dialog.
         if self._scan_running:
             return
-        self._sound_manager.play("primary")
         self._start_scan()
 
     # ------------------------------------------------------------------
@@ -632,6 +633,25 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Export", "Nothing to export yet.")
             return
 
+        scope_box = QMessageBox(self)
+        scope_box.setWindowTitle("Export scope")
+        scope_box.setText("Choose which rows to include in the export.")
+        scope_box.setInformativeText(
+            "Use the checkbox to restrict the export to the rows currently visible in the tree."
+        )
+        scope_box.setIcon(QMessageBox.Icon.Question)
+        scope_box.setStandardButtons(
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+        )
+        visible_toggle = QCheckBox("Export only visible rows", scope_box)
+        visible_toggle.setChecked(self._export_visible_only)
+        scope_box.setCheckBox(visible_toggle)
+        if scope_box.exec() != QMessageBox.StandardButton.Ok:
+            return
+        visible_only = visible_toggle.isChecked()
+        self._export_visible_only = visible_only
+        self._settings_store.save_export_visible_only(visible_only)
+
         filters = "Text files (*.txt);;CSV files (*.csv);;JSON files (*.json);;JSON Lines (*.jsonl)"
         initial_filter = {
             "lines": "Text files (*.txt)",
@@ -654,19 +674,6 @@ class MainWindow(QMainWindow):
         if fmt is None:
             QMessageBox.warning(self, "Export", "Unable to determine export format.")
             return
-
-        choice = QMessageBox.question(
-            self,
-            "Export scope",
-            "Export only visible rows?",
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.No
-            | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Yes,
-        )
-        if choice == QMessageBox.StandardButton.Cancel:
-            return
-        visible_only = choice == QMessageBox.StandardButton.Yes
 
         nodes = self.tree_panel.collect_nodes(visible_only=visible_only)
         if not nodes:
@@ -814,7 +821,6 @@ class MainWindow(QMainWindow):
     def _pause_scan(self) -> None:
         if not self._scan_running:
             return
-        self._sound_manager.play("secondary")
         self._pause_requested = True
         self.status_bar.set_message("Scan paused.")
         self._cancel_active_scan(wait=True)
@@ -824,10 +830,8 @@ class MainWindow(QMainWindow):
     def _cancel_scan(self) -> None:
         if not self._scan_running:
             if self._progress_dialog is not None:
-                self._sound_manager.play("secondary")
                 self._progress_dialog.hide()
             return
-        self._sound_manager.play("secondary")
         self._pause_requested = False
         self.status_bar.set_message("Scan cancelled.")
         self.status_bar.set_progress(None)
