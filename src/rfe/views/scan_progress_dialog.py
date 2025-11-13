@@ -316,5 +316,5 @@ class ScanProgressDialog(QDialog):
         self.pauseRequested.emit()
 
     def _on_cancel_clicked(self) -> None:
-        self._trigger_sound("secondary")
+        self._trigger_sound("cancel")
         self.cancelRequested.emit()

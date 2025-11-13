@@ -112,5 +112,8 @@ def build_default_sound_manager(parent: QObject | None = None) -> SoundManager:
     sounds = {
         "primary": audio_root / "tone-primary.wav",
         "secondary": audio_root / "tone-secondary.wav",
+        "pause": audio_root / "pause-button.wav",
+        "cancel": audio_root / "cancel-button.wav",
+        "complete": audio_root / "scan-complete-successful.wav",
     }
     return SoundManager(sounds, parent=parent)

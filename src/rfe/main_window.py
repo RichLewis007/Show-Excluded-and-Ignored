@@ -365,6 +365,7 @@ class MainWindow(QMainWindow):
         self._settings_store.save_last_paths(self._root_path, self._filter_file)
         self._update_action_states()
         self._set_scan_running(False)
+        self._sound_manager.play("complete")
         if self._progress_dialog is not None:
             self._progress_dialog.show_finished()
 
