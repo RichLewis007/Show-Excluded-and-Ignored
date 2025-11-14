@@ -45,12 +45,27 @@ a = Analysis(
     noarchive=False,
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher, allow_arch=False)
+
+# macOS app bundle Info.plist contents
+info_plist = {
+    "CFBundleName": "Ghost Files Finder",
+    "CFBundleDisplayName": "Ghost Files Finder",
+    "CFBundleIdentifier": "com.richlewis.ghostfilesfinder",
+    "CFBundleVersion": "1.0.0",
+    "CFBundleShortVersionString": "1.0.0",
+    "CFBundlePackageType": "APPL",
+    "CFBundleSignature": "GFFX",
+    "LSMinimumSystemVersion": "10.13",
+    "NSHighResolutionCapable": True,
+    "NSRequiresAquaSystemAppearance": False,
+}
+
 exe = EXE(
     pyz,
     a.scripts,
     [],
     exclude_binaries=True,
-    name="GhostFilesFinder",
+    name="Ghost Files Finder",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -63,6 +78,8 @@ exe = EXE(
     entitlements_file=None,
     icon=str(app_icon),
 )
+
+# Collect all files into a directory
 coll = COLLECT(
     exe,
     a.binaries,
@@ -71,5 +88,14 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="GhostFilesFinder",
+    name="Ghost Files Finder",
+)
+
+# Create macOS app bundle with Info.plist for proper dock name
+app = BUNDLE(
+    coll,
+    name="Ghost Files Finder.app",
+    icon=str(app_icon),
+    bundle_identifier="com.richlewis.ghostfilesfinder",
+    info_plist=info_plist,
 )

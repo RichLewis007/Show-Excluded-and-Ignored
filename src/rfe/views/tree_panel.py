@@ -48,6 +48,11 @@ class TreeFilterProxyModel(QSortFilterProxyModel):
         self._rule_filter: set[int] | None = None
         self.setRecursiveFilteringEnabled(True)
         self.setSortRole(Qt.ItemDataRole.DisplayRole)
+        # Enable dynamic sorting to ensure lessThan is called when sorting changes
+        self.setDynamicSortFilter(True)
+        # Set case-insensitive sorting as default for text columns
+        # This ensures Name and Full Path columns sort case-insensitively
+        self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
 
     def set_search_regex(self, regex: QRegularExpression | None) -> None:
         # Update the active search regex and re-filter the view.
@@ -63,7 +68,9 @@ class TreeFilterProxyModel(QSortFilterProxyModel):
         self.invalidateFilter()
 
     def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:  # type: ignore[override]
-        # Custom comparison for proper sorting of Size and Modified columns.
+        # Custom comparison for numeric sorting of Size and Modified columns.
+        # For text columns (Name, Full Path, etc.), the parent's lessThan is used
+        # which respects setSortCaseSensitivity(Qt.CaseInsensitive) set in __init__.
         source_model = self.sourceModel()
         if source_model is None:
             return super().lessThan(left, right)
@@ -105,32 +112,22 @@ class TreeFilterProxyModel(QSortFilterProxyModel):
         node_left = left_name_item.data(Qt.ItemDataRole.UserRole)
         node_right = right_name_item.data(Qt.ItemDataRole.UserRole)
 
-        # Size column (index 2): sort by raw byte size
+        # Size column (index 2): sort by raw byte size (numeric)
         if column == 2 and isinstance(node_left, PathNode) and isinstance(node_right, PathNode):
             size_left = node_left.size if node_left.size is not None else 0
             size_right = node_right.size if node_right.size is not None else 0
             return size_left < size_right
 
-        # Modified column (index 3): sort by raw timestamp
+        # Modified column (index 3): sort by raw timestamp (numeric)
         if column == 3 and isinstance(node_left, PathNode) and isinstance(node_right, PathNode):
             mtime_left = node_left.mtime if node_left.mtime is not None else 0.0
             mtime_right = node_right.mtime if node_right.mtime is not None else 0.0
             return mtime_left < mtime_right
 
-        # Default: use string comparison on the current column
-        left_col_item = source_model.itemFromIndex(left_source)
-        right_col_item = source_model.itemFromIndex(right_source)
-        if left_col_item is None or right_col_item is None:
-            return super().lessThan(left, right)
-
-        left_text = left_col_item.text()
-        right_text = right_col_item.text()
-
-        # Name column (index 0) and Full Path column (index 6): case-insensitive
-        if column == 0 or column == 6:
-            return left_text.lower() < right_text.lower()
-
-        return left_text < right_text
+        # For all other columns (Name=0, Type=1, First Rule=4, All Rules=5, Full Path=6),
+        # use the parent's lessThan which respects setSortCaseSensitivity(Qt.CaseInsensitive)
+        # This ensures case-insensitive sorting for Name and Full Path columns
+        return super().lessThan(left, right)
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # type: ignore[override]
         # Decide whether a source-model row passes the current filters.

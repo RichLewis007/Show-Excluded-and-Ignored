@@ -174,12 +174,13 @@ def _resolve_defaults(root: Path, filter_file: Path) -> tuple[Path, Path]:
 
 def main(argv: list[str] | None = None) -> int:
     # Entry point for console scripts.
-    if argv is None:
-        argv = sys.argv[1:]
-
-    # Set macOS process name immediately on macOS before any Qt initialization
+    # IMPORTANT: Set macOS process name FIRST, before any other imports or Qt initialization
+    # This must happen before QApplication is created for dock/task switcher to show correct name
     if sys.platform == "darwin":
         _set_macos_process_metadata("Ghost Files Finder")
+
+    if argv is None:
+        argv = sys.argv[1:]
 
     parser = _build_arg_parser()
     args = parser.parse_args(argv)

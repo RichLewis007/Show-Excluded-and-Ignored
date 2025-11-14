@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2025-01-XX
+
+### Added
+
+- File and folder size tracking for matched items during scanning
+- Size of matches display in scanning dialog and app footer with proper formatting (\<1 MB, KB, MB, TB, etc.)
+- Column sorting by clicking column headers with custom sorting for Size (numeric) and Modified (chronological) columns
+- Case-insensitive sorting for Name and Full Path columns
+- About dialog showing on app launch with version, copyright, and license information
+- macOS system menu "About Ghost Files Finder" item that appears in the macOS menu bar
+- MIT License file added to project root
+- Time elapsed display in scanning dialog with minutes/seconds format when exceeding 59 seconds
+- UI Sounds checkbox in results pane footer to mute/unmute all application sounds
+- Pause/Resume functionality for scans that preserves scan progress
+- Version information (1.0.0) and copyright (2025 Rich Lewis) in About dialog
+
+### Changed
+
+- Updated application version from 0.1.0 to 1.0.0
+- Improved About dialog positioning to appear on the same screen as main window
+- Enhanced macOS process name setting for better dock/task switcher integration
+
+### Fixed
+
+- Fixed index validation errors in proxy model sorting to prevent Qt warnings
+- Fixed multi-monitor positioning for About dialog and main window
+- Fixed case-insensitive sorting implementation for Name and Full Path columns
+- Improved About dialog timing to show after main window is fully visible
+
+## [Unreleased]
+
 ### Added
 
 - Background filesystem `ScanWorker` with progress, cancellation, and real tree population.

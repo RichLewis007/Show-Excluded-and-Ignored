@@ -10,8 +10,15 @@ from collections.abc import Callable, Iterable
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QThread
-from PySide6.QtGui import QAction, QCloseEvent, QIcon, QShowEvent
+from PySide6.QtCore import QSize, Qt, QThread, QTimer
+from PySide6.QtGui import (
+    QAction,
+    QCloseEvent,
+    QGuiApplication,
+    QIcon,
+    QKeySequence,
+    QShowEvent,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QDockWidget,
@@ -181,15 +188,37 @@ class MainWindow(QMainWindow):
         self.quit_action.setToolTip("Quit Ghost Files Finder")
         toolbar.addAction(self.quit_action)
 
-        # macOS About menu (appears in system menu bar under app name)
+        # macOS system menu (appears in menu bar under app name)
         if sys.platform == "darwin":
-            # Enable native menu bar so macOS handles About menu automatically
+            # Enable native menu bar so macOS handles app menu automatically
+            # This integrates the menu bar with the macOS system menu bar
             self.menuBar().setNativeMenuBar(True)
-            # Add About action - Qt will automatically move it to macOS system menu bar
+
+            # On macOS, Qt automatically moves actions with AboutRole and QuitRole
+            # to the Application menu (the first menu in the system menu bar).
+            # We create the first menu which becomes the Application menu on macOS.
+            # The menu title will be replaced by the app icon/name on macOS.
+            app_menu = self.menuBar().addMenu("")  # First menu becomes Application menu on macOS
+
+            # Add "About Ghost Files Finder" with AboutRole
+            # Qt automatically moves this to the Application menu
             about_action = QAction("About Ghost Files Finder", self)
+            about_action.setMenuRole(QAction.MenuRole.AboutRole)
             about_action.triggered.connect(self._show_about_dialog)
-            # On macOS, actions with "About" in name automatically go to system menu bar
-            self.menuBar().addAction(about_action)
+            app_menu.addAction(about_action)
+
+            # Add separator - appears after About in the Application menu
+            app_menu.addSeparator()
+
+            # Add "Quit Ghost Files Finder" with QuitRole
+            # Qt automatically moves this to the Application menu (with Cmd+Q shortcut)
+            quit_macos_action = QAction("Quit Ghost Files Finder", self)
+            quit_macos_action.setMenuRole(QAction.MenuRole.QuitRole)
+            quit_macos_action.setShortcut(QKeySequence.StandardKey.Quit)  # Cmd+Q
+            quit_macos_action.triggered.connect(
+                self._wrap_with_click_sound(self._prompt_exit, sound="secondary")
+            )
+            app_menu.addAction(quit_macos_action)
 
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(self.scan_action)
@@ -230,20 +259,85 @@ class MainWindow(QMainWindow):
         geometry = self._settings_store.load_window_geometry()
         if geometry is not None:
             self.restoreGeometry(geometry)
+            # Ensure the window is on a visible screen after restoration
+            self._ensure_window_on_screen()
         else:
             logger.debug("No previous window geometry stored.")
 
+    def _ensure_window_on_screen(self) -> None:
+        # Ensure the window frame geometry is visible on at least one screen.
+        # Qt's restoreGeometry() should restore the window to the correct monitor,
+        # but if that monitor is disconnected, we need to move it to a valid screen.
+        screens = QGuiApplication.screens()
+
+        if not screens:
+            return
+
+        # Wait a moment for geometry to be fully restored
+        # Then check if window is visible on any screen
+        QTimer.singleShot(10, lambda: self._check_and_fix_window_position())
+
+    def _check_and_fix_window_position(self) -> None:
+        # Check if the window is visible on any screen and fix if needed.
+        frame_rect = self.frameGeometry()
+        screens = QGuiApplication.screens()
+
+        if not screens:
+            return
+
+        # Check if any part of the window is visible on any screen
+        visible_on_screen = False
+        target_screen = None
+
+        for screen in screens:
+            available = screen.availableGeometry()
+            # Check if the window's top-left corner is on this screen
+            window_top_left = frame_rect.topLeft()
+            if available.contains(window_top_left):
+                visible_on_screen = True
+                target_screen = screen
+                break
+            # Also check if any part of the window intersects this screen
+            if available.intersects(frame_rect):
+                visible_on_screen = True
+                if target_screen is None:
+                    target_screen = screen
+
+        if not visible_on_screen or target_screen is None:
+            # Window is off-screen, try to find the screen that was used last time
+            # or fall back to the primary screen
+            primary_screen = QGuiApplication.primaryScreen()
+            target_screen = primary_screen if primary_screen is not None else screens[0]
+
+        if target_screen is not None:
+            available = target_screen.availableGeometry()
+            # Move window to the target screen, keeping it centered if possible
+            current_size = frame_rect.size()
+            x = available.x() + (available.width() - current_size.width()) // 2
+            y = available.y() + (available.height() - current_size.height()) // 2
+            # Ensure window fits on screen
+            x = max(available.x(), min(x, available.right() - current_size.width()))
+            y = max(available.y(), min(y, available.bottom() - current_size.height()))
+            self.move(x, y)
+            if not visible_on_screen:
+                logger.debug(
+                    "Window was off-screen, moved to screen '%s' at (%d, %d)",
+                    target_screen.name(),
+                    x,
+                    y,
+                )
+
     def showEvent(self, event: QShowEvent) -> None:
-        # Show About dialog on first launch, after main window is positioned.
+        # Show About dialog on first launch, after main window is fully visible and positioned.
         super().showEvent(event)
         if not self._about_shown:
             self._about_shown = True
-            # Ensure the window is fully positioned before showing the dialog
+            # Ensure the window is fully visible and positioned before showing the dialog
             self.raise_()
             self.activateWindow()
-            # Use QTimer to ensure geometry is fully applied, or show immediately
-            # Since showEvent happens after show(), geometry should be restored
-            self._show_about_dialog()
+            # Use QTimer to delay showing the dialog until window is fully rendered
+            # This ensures geometry is restored and window is on the correct screen
+            QTimer.singleShot(100, self._show_about_dialog)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         # Persist state and ensure background work stops before closing.
