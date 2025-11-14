@@ -127,8 +127,10 @@ def _ensure_qapp() -> QApplication:
     org_name = "Rich Lewis"
     org_domain = "ghost-files-finder.local"
 
+    # Set macOS process metadata BEFORE creating QApplication for proper dock name
     _set_macos_process_metadata(app_name)
 
+    # Set application metadata on QGuiApplication before QApplication
     QGuiApplication.setApplicationName(app_name)
     QGuiApplication.setApplicationDisplayName(app_name)
     QGuiApplication.setOrganizationName(org_name)
@@ -136,6 +138,12 @@ def _ensure_qapp() -> QApplication:
 
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
+
+    # On macOS, set process name in argv before QApplication reads it
+    if sys.platform == "darwin" and sys.argv:
+        # Replace the script name with the app name
+        sys.argv[0] = app_name
+
     app = QApplication(sys.argv)
     app.setApplicationName(app_name)
     app.setApplicationDisplayName(app_name)
@@ -164,6 +172,10 @@ def main(argv: list[str] | None = None) -> int:
     # Entry point for console scripts.
     if argv is None:
         argv = sys.argv[1:]
+
+    # Set macOS process name immediately on macOS before any Qt initialization
+    if sys.platform == "darwin":
+        _set_macos_process_metadata("Ghost Files Finder")
 
     parser = _build_arg_parser()
     args = parser.parse_args(argv)

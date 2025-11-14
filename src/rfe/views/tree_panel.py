@@ -19,7 +19,7 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QColor, QStandardItem
+from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -47,6 +47,7 @@ class TreeFilterProxyModel(QSortFilterProxyModel):
         self._search_regex: QRegularExpression | None = None
         self._rule_filter: set[int] | None = None
         self.setRecursiveFilteringEnabled(True)
+        self.setSortRole(Qt.ItemDataRole.DisplayRole)
 
     def set_search_regex(self, regex: QRegularExpression | None) -> None:
         # Update the active search regex and re-filter the view.
@@ -60,6 +61,76 @@ class TreeFilterProxyModel(QSortFilterProxyModel):
         else:
             self._rule_filter = set(rule_indices)
         self.invalidateFilter()
+
+    def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:  # type: ignore[override]
+        # Custom comparison for proper sorting of Size and Modified columns.
+        source_model = self.sourceModel()
+        if source_model is None:
+            return super().lessThan(left, right)
+
+        if not isinstance(source_model, QStandardItemModel):
+            return super().lessThan(left, right)
+
+        # Validate indices before mapping
+        if not left.isValid() or not right.isValid():
+            return super().lessThan(left, right)
+
+        # Verify indices belong to this proxy model
+        if left.model() != self or right.model() != self:
+            return super().lessThan(left, right)
+
+        try:
+            left_source = self.mapToSource(left)
+            right_source = self.mapToSource(right)
+        except (RuntimeError, ValueError):
+            return super().lessThan(left, right)
+
+        if not left_source.isValid() or not right_source.isValid():
+            return super().lessThan(left, right)
+
+        column = left.column()
+
+        # Get the PathNode for raw value access (stored in column 0's UserRole)
+        left_name_index = source_model.index(left_source.row(), 0, left_source.parent())
+        right_name_index = source_model.index(right_source.row(), 0, right_source.parent())
+        if not left_name_index.isValid() or not right_name_index.isValid():
+            return super().lessThan(left, right)
+
+        left_name_item = source_model.itemFromIndex(left_name_index)
+        right_name_item = source_model.itemFromIndex(right_name_index)
+
+        if left_name_item is None or right_name_item is None:
+            return super().lessThan(left, right)
+
+        node_left = left_name_item.data(Qt.ItemDataRole.UserRole)
+        node_right = right_name_item.data(Qt.ItemDataRole.UserRole)
+
+        # Size column (index 2): sort by raw byte size
+        if column == 2 and isinstance(node_left, PathNode) and isinstance(node_right, PathNode):
+            size_left = node_left.size if node_left.size is not None else 0
+            size_right = node_right.size if node_right.size is not None else 0
+            return size_left < size_right
+
+        # Modified column (index 3): sort by raw timestamp
+        if column == 3 and isinstance(node_left, PathNode) and isinstance(node_right, PathNode):
+            mtime_left = node_left.mtime if node_left.mtime is not None else 0.0
+            mtime_right = node_right.mtime if node_right.mtime is not None else 0.0
+            return mtime_left < mtime_right
+
+        # Default: use string comparison on the current column
+        left_col_item = source_model.itemFromIndex(left_source)
+        right_col_item = source_model.itemFromIndex(right_source)
+        if left_col_item is None or right_col_item is None:
+            return super().lessThan(left, right)
+
+        left_text = left_col_item.text()
+        right_text = right_col_item.text()
+
+        # Name column (index 0) and Full Path column (index 6): case-insensitive
+        if column == 0 or column == 6:
+            return left_text.lower() < right_text.lower()
+
+        return left_text < right_text
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # type: ignore[override]
         # Decide whether a source-model row passes the current filters.
@@ -127,7 +198,7 @@ class TreePanel(QWidget):
         self._tree.setModel(self._proxy)
         self._tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._tree.setUniformRowHeights(True)
-        self._tree.setSortingEnabled(False)
+        self._tree.setSortingEnabled(True)
         self._tree.setAnimated(True)
         self._tree.setHeaderHidden(False)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
