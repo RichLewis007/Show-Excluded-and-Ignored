@@ -22,6 +22,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QColor, QStandardItem
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -104,6 +105,7 @@ class TreePanel(QWidget):
 
     deleteRequested = Signal()
     selectionChanged = Signal()
+    soundToggled = Signal(bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -151,7 +153,18 @@ class TreePanel(QWidget):
         self._summary_label = QLabel(self)
         self._summary_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._summary_label.setText("Files: 0   Folders: 0   Total: 0")
-        layout.addWidget(self._summary_label)
+
+        summary_row = QHBoxLayout()
+        summary_row.setContentsMargins(0, 0, 0, 0)
+        summary_row.addWidget(self._summary_label, 1)
+        summary_row.addStretch(1)
+
+        self._sounds_toggle = QCheckBox("UI Sounds", self)
+        self._sounds_toggle.setChecked(True)
+        self._sounds_toggle.toggled.connect(self._on_sound_toggled)
+        summary_row.addWidget(self._sounds_toggle, 0, Qt.AlignmentFlag.AlignRight)
+
+        layout.addLayout(summary_row)
         self.setLayout(layout)
 
         self._model.itemChanged.connect(self._on_item_changed)
@@ -392,6 +405,12 @@ class TreePanel(QWidget):
         if not color.isValid():
             color = QColor("#FFF59D")
         self._model.highlight_rule(paths, color)
+
+    def _on_sound_toggled(self, checked: bool) -> None:
+        self.soundToggled.emit(checked)
+
+    def ui_sounds_enabled(self) -> bool:
+        return self._sounds_toggle.isChecked()
 
     def _build_regex(
         self,

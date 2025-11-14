@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from rfe.services.formatting import format_match_bytes
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 BADGE_RUNNING_PATH = PROJECT_ROOT / "assets" / "in-app-ghost-pic.png"
 BADGE_FINISHED_PATH = Path(__file__).resolve().parents[1] / "resources" / "ghost-scan-finished.png"
@@ -30,6 +32,7 @@ class ScanProgressDialog(QDialog):
 
     scanRequested = Signal()
     pauseRequested = Signal()
+    resumeRequested = Signal()
     cancelRequested = Signal()
 
     def __init__(
@@ -45,7 +48,7 @@ class ScanProgressDialog(QDialog):
         self.resize(900, 300)
         self._play_sound = play_sound
 
-        self._summary_label = QLabel("Scanning..", self)
+        self._summary_label = QLabel("Scanning...", self)
         self._summary_label.setWordWrap(True)
         summary_font = self._summary_label.font()
         summary_font.setPointSize(summary_font.pointSize() + 6)
@@ -96,6 +99,13 @@ class ScanProgressDialog(QDialog):
             self._matches_value.fontMetrics().horizontalAdvance(digits_sample)
         )
 
+        self._size_value = QLabel(format_match_bytes(0), self)
+        self._size_value.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        size_sample = "999,999 PB"
+        self._size_value.setFixedWidth(
+            self._size_value.fontMetrics().horizontalAdvance(size_sample)
+        )
+
         self._time_value = QLabel("0s", self)
         self._time_value.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._time_value.setFixedWidth(
@@ -123,6 +133,7 @@ class ScanProgressDialog(QDialog):
         add_count_row("Files:", self._files_value)
         add_count_row("Folders:", self._folders_value)
         add_count_row("Matches:", self._matches_value, bold=True)
+        add_count_row("Size of matches:", self._size_value, bold=True)
         add_count_row("Time elapsed:", self._time_value)
 
         self._path_label = QLabel("", self)
@@ -138,6 +149,12 @@ class ScanProgressDialog(QDialog):
         self._badge_label = QLabel(self)
         self._badge_label.setVisible(False)
         self._set_badge_image(BADGE_RUNNING_PATH)
+        badge_layout = QVBoxLayout()
+        badge_layout.setContentsMargins(0, 0, 0, 0)
+        badge_layout.addStretch(1)
+        badge_layout.addWidget(
+            self._badge_label, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
+        )
 
         button_layout = QHBoxLayout()
         button_layout.setSpacing(10)
@@ -158,6 +175,7 @@ class ScanProgressDialog(QDialog):
         self._cancel_button.setIconSize(QSize(28, 28))
         self._cancel_button.clicked.connect(self._on_cancel_clicked)
         button_layout.addWidget(self._cancel_button)
+        self._paused = False
 
         source_line = QHBoxLayout()
         source_line.setSpacing(6)
@@ -173,7 +191,6 @@ class ScanProgressDialog(QDialog):
 
         details_layout = QVBoxLayout()
         details_layout.setSpacing(12)
-        details_layout.addWidget(self._summary_label, alignment=Qt.AlignmentFlag.AlignCenter)
         details_layout.addLayout(source_line)
         details_layout.addLayout(rules_line)
         counts_frame = QFrame(self)
@@ -183,12 +200,7 @@ class ScanProgressDialog(QDialog):
         counts_frame.setSizePolicy(
             QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         )
-        counts_align = QHBoxLayout()
-        counts_align.setContentsMargins(0, 12, 0, 0)
-        counts_align.addStretch(2)
-        counts_align.addWidget(counts_frame)
-        counts_align.addStretch(1)
-        details_layout.addLayout(counts_align)
+        details_layout.addWidget(counts_frame, alignment=Qt.AlignmentFlag.AlignHCenter)
         details_layout.addStretch(1)
 
         main_layout = QGridLayout(self)
@@ -197,12 +209,27 @@ class ScanProgressDialog(QDialog):
         main_layout.setVerticalSpacing(12)
         main_layout.setColumnStretch(0, 1)
         main_layout.setColumnStretch(1, 0)
-        main_layout.addLayout(details_layout, 0, 0)
         main_layout.addWidget(
-            self._badge_label, 0, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
+            self._summary_label,
+            0,
+            0,
+            1,
+            2,
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
         )
-        main_layout.addWidget(self._path_label, 1, 0, 1, 2)
-        main_layout.addLayout(button_layout, 2, 0, 1, 2)
+        badge_container = QWidget(self)
+        badge_container.setLayout(badge_layout)
+        main_layout.addWidget(
+            badge_container,
+            0,
+            1,
+            2,
+            1,
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop,
+        )
+        main_layout.addLayout(details_layout, 1, 0)
+        main_layout.addWidget(self._path_label, 2, 0, 1, 2)
+        main_layout.addLayout(button_layout, 3, 0, 1, 2)
 
         self.setLayout(main_layout)
         self.set_running(False)
@@ -212,7 +239,7 @@ class ScanProgressDialog(QDialog):
 
     def prepare_for_scan(self, root_path: Path, filter_path: Path | None) -> None:
         # Prime the dialog before a new scan begins.
-        self._summary_label.setText("Scanning..")
+        self._summary_label.setText("Scanning...")
         self._source_value.setText(str(root_path))
         if filter_path is not None:
             self._rules_value.setText(str(filter_path))
@@ -222,9 +249,11 @@ class ScanProgressDialog(QDialog):
         self._files_value.setText("0")
         self._folders_value.setText("0")
         self._matches_value.setText("0")
+        self._size_value.setText(format_match_bytes(0))
         self._time_value.setText("0s")
         self._set_badge_image(BADGE_RUNNING_PATH)
         self.set_running(True)
+        self.set_paused(False)
 
     def set_running(self, running: bool) -> None:
         # Toggle button availability based on scan activity.
@@ -232,12 +261,20 @@ class ScanProgressDialog(QDialog):
         self._pause_button.setEnabled(running)
         self._cancel_button.setEnabled(True)
         self._cancel_button.setText("Cancel" if running else "Close")
+        if not running:
+            self.set_paused(False)
+
+    def set_paused(self, paused: bool) -> None:
+        # Update pause button state to reflect paused/resumed modes.
+        self._paused = paused
+        self._pause_button.setText("Resume" if paused else "Pause")
 
     def update_progress(
         self,
         files: int,
         folders: int,
         matches: int,
+        matched_bytes: int,
         elapsed: float,
         current_path: str,
     ) -> None:
@@ -245,15 +282,23 @@ class ScanProgressDialog(QDialog):
         self._files_value.setText(f"{files:,}")
         self._folders_value.setText(f"{folders:,}")
         self._matches_value.setText(f"{matches:,}")
-        self._time_value.setText(f"{round(elapsed):,}s")
+        self._size_value.setText(format_match_bytes(matched_bytes))
+        self._time_value.setText(self._format_elapsed(elapsed))
         if current_path and current_path not in {"", "done"}:
             self._path_label.setText(self._wrap_path(current_path))
         else:
             self._path_label.setText(self._wrap_path(""))
 
+    def _format_elapsed(self, elapsed: float) -> str:
+        total_seconds = max(round(elapsed), 0)
+        if total_seconds < 60:
+            return f"{total_seconds:,}s"
+        minutes, seconds = divmod(total_seconds, 60)
+        return f"{minutes:,}m {seconds:02d}s"
+
     def show_finished(self) -> None:
         # Display completion message and reset controls.
-        self._summary_label.setText("Finished scanning")
+        self._summary_label.setText("Finished Scanning")
         self._path_label.clear()
         self._set_badge_image(BADGE_FINISHED_PATH)
         self.set_running(False)
@@ -312,8 +357,12 @@ class ScanProgressDialog(QDialog):
         self.scanRequested.emit()
 
     def _on_pause_clicked(self) -> None:
-        self._trigger_sound("secondary")
-        self.pauseRequested.emit()
+        if self._paused:
+            self._trigger_sound("primary")
+            self.resumeRequested.emit()
+        else:
+            self._trigger_sound("secondary")
+            self.pauseRequested.emit()
 
     def _on_cancel_clicked(self) -> None:
         self._trigger_sound("cancel")

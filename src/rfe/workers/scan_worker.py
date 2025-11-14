@@ -5,6 +5,7 @@ import os
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+from threading import Event
 from time import monotonic
 
 from PySide6.QtCore import QObject, Signal
@@ -20,6 +21,7 @@ class ScanStats:
 
     scanned: int = 0
     matched: int = 0
+    matched_bytes: int = 0
     files: int = 0
     folders: int = 0
     start_time: float = field(default_factory=monotonic)
@@ -44,7 +46,9 @@ class ScanPayload:
 class ScanWorker(QObject):
     # Worker object that scans a filesystem subtree for rule matches.
 
-    progress = Signal(int, int, int, float, str)  # files, folders, matches, elapsed, path
+    progress = Signal(
+        int, int, int, int, float, str
+    )  # files, folders, matches, bytes, elapsed, path
     finished = Signal(object)  # ScanPayload
     error = Signal(str)
     cancelled = Signal()
@@ -61,10 +65,21 @@ class ScanWorker(QObject):
         self._rules = list(rules)
         self._case_sensitive = case_sensitive
         self._cancel_requested = False
+        self._pause_event = Event()
+        self._pause_event.set()
 
     def request_cancel(self) -> None:
         # Signal the worker to stop at the next opportunity.
         self._cancel_requested = True
+        self._pause_event.set()
+
+    def request_pause(self) -> None:
+        # Temporarily pause traversal until resumed.
+        self._pause_event.clear()
+
+    def request_resume(self) -> None:
+        # Resume traversal after a pause.
+        self._pause_event.set()
 
     def start(self) -> None:
         # Entry point executed inside the worker thread.
@@ -100,11 +115,15 @@ class ScanWorker(QObject):
         for dirpath, dirnames, filenames in os.walk(root):
             if self._cancel_requested:
                 return None
+            if not self._wait_if_paused():
+                return None
 
             current_dir = Path(dirpath)
             entries = list(dirnames) + filenames
             for name in entries:
                 if self._cancel_requested:
+                    return None
+                if not self._wait_if_paused():
                     return None
 
                 abs_path = current_dir / name
@@ -118,6 +137,8 @@ class ScanWorker(QObject):
                 nodes[result.rel_path] = node
                 if result.decision.matched:
                     stats.matched += 1
+                    if node.type == "file" and node.size is not None:
+                        stats.matched_bytes += node.size
 
                 if node.type == "file":
                     stats.files += 1
@@ -131,6 +152,7 @@ class ScanWorker(QObject):
                         stats.files,
                         stats.folders,
                         stats.matched,
+                        stats.matched_bytes,
                         elapsed,
                         str(abs_path),
                     )
@@ -141,11 +163,13 @@ class ScanWorker(QObject):
             stats.files,
             stats.folders,
             stats.matched,
+            stats.matched_bytes,
             elapsed,
             "done",
         )
 
         tree_nodes = self._build_tree(nodes, root_key)
+        self._pause_event.set()
         return ScanPayload(nodes=tree_nodes, stats=stats)
 
     def _build_node(self, match: MatchResult) -> PathNode:
@@ -234,3 +258,10 @@ class ScanWorker(QObject):
         node.children.sort(key=lambda item: (item.type != "dir", item.name.lower()))
         for child in node.children:
             self._sort_children(child)
+
+    def _wait_if_paused(self) -> bool:
+        # Block traversal while a pause has been requested.
+        while not self._pause_event.wait(timeout=0.1):
+            if self._cancel_requested:
+                return False
+        return True

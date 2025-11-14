@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from .models.fs_model import PathNode
 from .models.rules_model import parse_filter_file
 from .services.config import SettingsStore
+from .services.formatting import format_bytes, format_match_bytes
 from .services.sounds import SoundManager, build_default_sound_manager
 from .views.rules_panel import RulesPanel
 from .views.scan_progress_dialog import ScanProgressDialog
@@ -82,8 +83,9 @@ class MainWindow(QMainWindow):
         self._last_export_format = self._settings_store.load_export_format()
         self._export_visible_only = self._settings_store.load_export_visible_only()
         self._scan_running = False
-        self._pause_requested = False
+        self._scan_paused = False
         self._progress_dialog: ScanProgressDialog | None = None
+        self._current_match_bytes = 0
         self._root_selected = DEBUG_MODE and self._root_path.exists()
         self._rules_selected = DEBUG_MODE and self._filter_file.exists()
 
@@ -120,6 +122,7 @@ class MainWindow(QMainWindow):
 
         self._create_actions()
         self._make_connections()
+        self._sound_manager.set_enabled(self.tree_panel.ui_sounds_enabled())
 
     def _create_actions(self) -> None:
         # Build the window toolbar and key QAction objects.
@@ -207,6 +210,7 @@ class MainWindow(QMainWindow):
         self.rules_panel.ruleHighlighted.connect(self.tree_panel.on_rule_highlighted)
         self.tree_panel.selectionChanged.connect(self._update_action_states)
         self.tree_panel.deleteRequested.connect(self._prompt_delete_selection)
+        self.tree_panel.soundToggled.connect(self._on_sound_toggled)
 
     def _restore_state(self) -> None:
         # Restore geometry and other persisted UI state.
@@ -248,6 +252,7 @@ class MainWindow(QMainWindow):
             dialog = ScanProgressDialog(self, play_sound=self._sound_manager.play)
             dialog.scanRequested.connect(self._on_dialog_scan_requested)
             dialog.pauseRequested.connect(self._pause_scan)
+            dialog.resumeRequested.connect(self._resume_scan)
             dialog.cancelRequested.connect(self._cancel_scan)
             self._progress_dialog = dialog
         return self._progress_dialog
@@ -281,6 +286,8 @@ class MainWindow(QMainWindow):
         self.status_bar.set_progress(None)
         self._set_controls_enabled(False)
         self._set_scan_running(True)
+        self._scan_paused = False
+        self._current_match_bytes = 0
 
         progress_dialog = self._show_progress_dialog()
         progress_dialog.prepare_for_scan(self._root_path, self._filter_file)
@@ -311,6 +318,7 @@ class MainWindow(QMainWindow):
     def _cancel_active_scan(self, *, wait: bool) -> None:
         # Request cancellation of the running scan thread.
         if self._scan_worker is not None:
+            self._scan_worker.request_resume()
             self._scan_worker.request_cancel()
         if self._scan_thread is not None:
             self._scan_thread.quit()
@@ -319,24 +327,29 @@ class MainWindow(QMainWindow):
             self._scan_thread = None
             self._scan_worker = None
             self._set_scan_running(False)
+        self._scan_paused = False
         if self._progress_dialog is not None and not self._scan_running:
             self._progress_dialog.set_running(False)
+            self._progress_dialog.set_paused(False)
 
     def _on_scan_progress(
         self,
         files: int,
         folders: int,
         matches: int,
+        matched_bytes: int,
         elapsed: float,
         current_path: str,
     ) -> None:
         # Update progress feedback while scanning.
+        self._current_match_bytes = matched_bytes
         parts = [
             "Scanning…",
             f"Files: {files:,}",
             f"Folders: {folders:,}",
             f"Matches: {matches:,}",
-            f"Elapsed: {round(elapsed):,}s",
+            f"Size of matches: {format_match_bytes(matched_bytes)}",
+            f"Elapsed: {self._format_elapsed(elapsed)}",
         ]
         if current_path and current_path not in {"", "done"}:
             parts.append(current_path)
@@ -346,6 +359,7 @@ class MainWindow(QMainWindow):
                 files,
                 folders,
                 matches,
+                matched_bytes,
                 elapsed,
                 current_path,
             )
@@ -354,10 +368,11 @@ class MainWindow(QMainWindow):
         # Handle completion of a scan by updating the tree and status.
         self.tree_panel.load_nodes(payload.nodes, self.rules_panel.rules)
         duration = payload.stats.duration
-        duration_text = f"{round(duration):.0f}s" if duration is not None else "n/a"
+        duration_text = self._format_elapsed(duration) if duration is not None else "n/a"
+        size_text = format_match_bytes(payload.stats.matched_bytes)
         self.status_bar.set_message(
             f"Scan complete: {payload.stats.matched:,} matches across "
-            f"{payload.stats.scanned:,} items in {duration_text}",
+            f"{payload.stats.scanned:,} items in {duration_text} — Size of matches: {size_text}",
         )
         self.status_bar.set_progress(None)
         self._set_controls_enabled(True)
@@ -365,8 +380,10 @@ class MainWindow(QMainWindow):
         self._settings_store.save_last_paths(self._root_path, self._filter_file)
         self._update_action_states()
         self._set_scan_running(False)
+        self._scan_paused = False
         self._sound_manager.play("complete")
         if self._progress_dialog is not None:
+            self._progress_dialog.set_paused(False)
             self._progress_dialog.show_finished()
 
     def _on_scan_error(self, message: str) -> None:
@@ -375,29 +392,34 @@ class MainWindow(QMainWindow):
         self._set_controls_enabled(True)
         QMessageBox.critical(self, "Scan failed", message)
         self._set_scan_running(False)
+        self._scan_paused = False
         if self._progress_dialog is not None:
+            self._progress_dialog.set_paused(False)
             self._progress_dialog.show_error("Scan failed.")
 
     def _on_scan_cancelled(self) -> None:
         # Reset UI after a cancelled scan.
-        status_text = "Scan paused" if self._pause_requested else "Scan cancelled"
-        self.status_bar.set_message(status_text)
+        self.status_bar.set_message("Scan cancelled")
         self.status_bar.set_progress(None)
         self._set_controls_enabled(True)
         self._set_scan_running(False)
-        self._pause_requested = False
+        self._scan_paused = False
         if self._progress_dialog is not None:
-            self._progress_dialog.show_status(status_text)
+            self._progress_dialog.set_paused(False)
+            self._progress_dialog.show_status("Scan cancelled")
 
     def _on_scan_thread_finished(self) -> None:
         # Clear references once the scan thread exits.
         self._scan_thread = None
         self._scan_worker = None
         self._set_scan_running(False)
+        self._scan_paused = False
 
     def _on_dialog_scan_requested(self) -> None:
         # Start a scan when requested via the progress dialog.
         if self._scan_running:
+            if self._scan_paused:
+                self._resume_scan()
             return
         self._start_scan()
 
@@ -820,24 +842,39 @@ class MainWindow(QMainWindow):
         return wrapped
 
     def _pause_scan(self) -> None:
-        if not self._scan_running:
+        if not self._scan_running or self._scan_worker is None or self._scan_paused:
             return
-        self._pause_requested = True
-        self.status_bar.set_message("Scan paused.")
-        self._cancel_active_scan(wait=True)
+        self._scan_paused = True
+        self.status_bar.set_message("Scan Paused.")
         self.status_bar.set_progress(None)
         self._set_controls_enabled(True)
+        self._scan_worker.request_pause()
+        if self._progress_dialog is not None:
+            self._progress_dialog.set_paused(True)
 
     def _cancel_scan(self) -> None:
         if not self._scan_running:
             if self._progress_dialog is not None:
                 self._progress_dialog.hide()
             return
-        self._pause_requested = False
         self.status_bar.set_message("Scan cancelled.")
         self.status_bar.set_progress(None)
+        self._scan_paused = False
         self._cancel_active_scan(wait=True)
         self._set_controls_enabled(True)
+
+    def _resume_scan(self) -> None:
+        if not self._scan_running or not self._scan_paused or self._scan_worker is None:
+            return
+        self._scan_paused = False
+        self.status_bar.set_message("Resuming scan…")
+        self._set_controls_enabled(False)
+        self._scan_worker.request_resume()
+        if self._progress_dialog is not None:
+            self._progress_dialog.set_paused(False)
+
+    def _on_sound_toggled(self, enabled: bool) -> None:
+        self._sound_manager.set_enabled(enabled)
 
     def _update_action_states(self) -> None:
         # Ensure toolbar actions reflect current selection and data.
@@ -851,12 +888,16 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _format_size(num_bytes: int) -> str:
         # Return a human-readable string for ``num_bytes``.
-        value = float(num_bytes)
-        for unit in ["B", "KB", "MB", "GB", "TB"]:
-            if value < 1024:
-                return f"{value:.1f} {unit}"
-            value /= 1024
-        return f"{value:.1f} PB"
+        return format_bytes(num_bytes)
+
+    @staticmethod
+    def _format_elapsed(elapsed: float) -> str:
+        # Return elapsed time formatted as seconds or minutes/seconds.
+        total_seconds = max(round(elapsed), 0)
+        if total_seconds < 60:
+            return f"{total_seconds:,}s"
+        minutes, seconds = divmod(total_seconds, 60)
+        return f"{minutes:,}m {seconds:02d}s"
 
     @staticmethod
     def _format_mtime(timestamp: float | None) -> str | None:

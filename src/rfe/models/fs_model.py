@@ -10,6 +10,8 @@ from typing import ClassVar, Literal
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel
 
+from rfe.services.formatting import format_bytes
+
 from .rules_model import Rule
 
 NodeType = Literal["file", "dir"]
@@ -124,15 +126,7 @@ class PathTreeModel(QStandardItemModel):
     @staticmethod
     def _format_size(size: int | None) -> str:
         # Return a human-readable size string.
-        if size is None:
-            return ""
-        if size < 1024:
-            return f"{size} B"
-        if size < 1024 * 1024:
-            return f"{size / 1024:.1f} KB"
-        if size < 1024 * 1024 * 1024:
-            return f"{size / (1024 * 1024):.1f} MB"
-        return f"{size / (1024 * 1024 * 1024):.1f} GB"
+        return format_bytes(size, empty="")
 
     @staticmethod
     def _format_mtime(mtime: float | None) -> str:
